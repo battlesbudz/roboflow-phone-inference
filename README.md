@@ -2,7 +2,7 @@
 
 A tiny, self-contained object-detection server that runs on a phone.
 
-ONNX Runtime + YOLOv8n behind a two-endpoint HTTP API. The full
+ONNX Runtime + YOLOv8n behind a three-endpoint HTTP API. The full
 Roboflow inference server does this job in 7.3 GB of dependencies and
 ~1.1 GB of idle RAM; this does it in ~130 MB on disk and ~160 MB of RAM,
 which is the difference between "runs in a datacenter" and "runs in
@@ -38,8 +38,16 @@ mid-range phone.
 - `GET /health` — liveness, model identity, load time
 - `POST /detect` — base64 image in, detections out
   (label, confidence, bounding box in original-image pixels)
+- `POST /infer/object_detection` — same detections in Roboflow's
+  request/response shapes (center x/y, width/height, class, class_id,
+  detection_id), so existing Roboflow clients work with minimal changes
 
 Full contract: [API.md](API.md).
+
+Compatibility note: the `/infer/object_detection` shapes were tested
+against inference **1.7.3** (request and response classes, round-tripped
+in `test_rf_compat.py`). That is the verified version, not a permanent
+guarantee. Scope is object detection only.
 
 ## Benchmarks
 
@@ -55,10 +63,12 @@ Methodology, raw numbers, and a blank row for your phone's results:
 
 ## Files
 
-- `server.py` — the whole server (~200 lines)
+- `server.py` — the whole server (~340 lines)
 - `termux-setup.sh` — one-shot phone bootstrap
 - `yolov8n.onnx` — YOLOv8 nano, COCO 80 classes (12 MB)
 - `test_client.py` — smoke-test client
+- `test_rf_compat.py` — compatibility tests for `/infer/object_detection`
+  (validates against the real inference 1.7.3 request/response classes)
 - `API.md` / `BENCHMARKS.md` / `TERMUX.md` — docs
 
 ## Roadmap

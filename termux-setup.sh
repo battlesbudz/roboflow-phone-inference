@@ -15,8 +15,8 @@ python -m venv --system-site-packages ~/jarvis-vision-venv
 source ~/jarvis-vision-venv/bin/activate
 pip install --upgrade pip
 
-echo "==> Installing Python deps..."
-pip install pillow fastapi uvicorn pydantic
+echo "==> Installing Python deps (pure-Python pins: pydantic v2 needs Rust, which phones lack)..."
+pip install pillow "fastapi==0.95.2" uvicorn "pydantic>=1.10,<2"
 
 echo "==> Installing ONNX Runtime..."
 if ! pip install onnxruntime; then

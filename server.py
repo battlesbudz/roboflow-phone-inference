@@ -33,7 +33,7 @@ import numpy as np
 import onnxruntime as ort
 from fastapi import FastAPI, HTTPException
 from PIL import Image, UnidentifiedImageError
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 MODEL_PATH = str(Path(__file__).resolve().parent / "yolov8n.onnx")
 INPUT_SIZE = 640
@@ -267,14 +267,15 @@ class RFInferRequest(BaseModel):
 
 
 class RFPrediction(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    class Config:
+        allow_population_by_field_name = True
 
     x: float  # center x, original-image pixels
     y: float  # center y, original-image pixels
     width: float
     height: float
     confidence: float
-    class_name: str = Field(serialization_alias="class")
+    class_name: str = Field(alias="class")
     class_id: int
     detection_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
@@ -688,47 +689,51 @@ class RFPoint(BaseModel):
 
 
 class RFSegPrediction(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    class Config:
+        allow_population_by_field_name = True
 
     x: float
     y: float
     width: float
     height: float
     confidence: float
-    class_name: str = Field(serialization_alias="class")
+    class_name: str = Field(alias="class")
     class_id: int
     detection_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     points: list[RFPoint]
 
 
 class RFKeypoint(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    class Config:
+        allow_population_by_field_name = True
 
     x: float
     y: float
     confidence: float
     class_id: int
-    class_name: str = Field(serialization_alias="class")
+    class_name: str = Field(alias="class")
 
 
 class RFPosePrediction(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    class Config:
+        allow_population_by_field_name = True
 
     x: float
     y: float
     width: float
     height: float
     confidence: float
-    class_name: str = Field(serialization_alias="class")
+    class_name: str = Field(alias="class")
     class_id: int
     detection_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     keypoints: list[RFKeypoint]
 
 
 class RFClassPrediction(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    class Config:
+        allow_population_by_field_name = True
 
-    class_name: str = Field(serialization_alias="class")
+    class_name: str = Field(alias="class")
     class_id: int
     confidence: float
 

@@ -33,7 +33,18 @@ import numpy as np
 import onnxruntime as ort
 from fastapi import FastAPI, HTTPException
 from PIL import Image, UnidentifiedImageError
+import pydantic
 from pydantic import BaseModel, Field
+
+if pydantic.VERSION.startswith("1."):  # pure-python, no Rust: the phone path
+    class _CompatBase(BaseModel):
+        class Config:
+            allow_population_by_field_name = True
+else:  # pydantic v2
+    from pydantic import ConfigDict
+
+    class _CompatBase(BaseModel):
+        model_config = ConfigDict(populate_by_name=True)
 
 MODEL_PATH = str(Path(__file__).resolve().parent / "yolov8n.onnx")
 INPUT_SIZE = 640
@@ -55,25 +66,25 @@ COCO_LABELS = [
 ]
 
 
-class DetectRequest(BaseModel):
+class DetectRequest(_CompatBase):
     image: str  # base64-encoded PNG or JPEG
     confidence: float = 0.25
 
 
-class Box(BaseModel):
+class Box(_CompatBase):
     x1: float
     y1: float
     x2: float
     y2: float
 
 
-class Detection(BaseModel):
+class Detection(_CompatBase):
     label: str
     confidence: float
     box: Box
 
 
-class DetectResponse(BaseModel):
+class DetectResponse(_CompatBase):
     detections: list[Detection]
     inference_ms: float
 
@@ -251,12 +262,12 @@ def detect(req: DetectRequest):
 # ---------------------------------------------------------------------------
 
 
-class RFImage(BaseModel):
+class RFImage(_CompatBase):
     type: str  # "base64" or "url"
     value: str
 
 
-class RFInferRequest(BaseModel):
+class RFInferRequest(_CompatBase):
     image: RFImage
     api_key: Optional[str] = None  # accepted, ignored: no hosted account
     model_id: Optional[str] = None  # accepted, ignored: single local model
@@ -266,9 +277,8 @@ class RFInferRequest(BaseModel):
     max_detections: int = Field(default=300, ge=1)
 
 
-class RFPrediction(BaseModel):
-    class Config:
-        allow_population_by_field_name = True
+class RFPrediction(_CompatBase):
+    pass  # config inherited from _CompatBase
 
     x: float  # center x, original-image pixels
     y: float  # center y, original-image pixels
@@ -280,12 +290,12 @@ class RFPrediction(BaseModel):
     detection_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
 
-class RFImageInfo(BaseModel):
+class RFImageInfo(_CompatBase):
     width: int
     height: int
 
 
-class RFInferResponse(BaseModel):
+class RFInferResponse(_CompatBase):
     predictions: list[RFPrediction]
     image: RFImageInfo
     inference_id: str
@@ -655,7 +665,7 @@ classifier = Classifier()
 # ---------------------------------------------------------------------------
 
 
-class RFBaseInferRequest(BaseModel):
+class RFBaseInferRequest(_CompatBase):
     image: RFImage
     api_key: Optional[str] = None  # accepted, ignored: no hosted account
     model_id: Optional[str] = None  # accepted, ignored: single local model
@@ -676,21 +686,20 @@ class RFPoseInferRequest(RFBaseInferRequest):
     keypoint_iou_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
-class RFClassInferRequest(BaseModel):
+class RFClassInferRequest(_CompatBase):
     image: RFImage
     api_key: Optional[str] = None  # accepted, ignored
     model_id: Optional[str] = None  # accepted, ignored
     confidence: Union[float, str] = 0.4  # min top-1 to report as `top`
 
 
-class RFPoint(BaseModel):
+class RFPoint(_CompatBase):
     x: float
     y: float
 
 
-class RFSegPrediction(BaseModel):
-    class Config:
-        allow_population_by_field_name = True
+class RFSegPrediction(_CompatBase):
+    pass  # config inherited from _CompatBase
 
     x: float
     y: float
@@ -703,9 +712,8 @@ class RFSegPrediction(BaseModel):
     points: list[RFPoint]
 
 
-class RFKeypoint(BaseModel):
-    class Config:
-        allow_population_by_field_name = True
+class RFKeypoint(_CompatBase):
+    pass  # config inherited from _CompatBase
 
     x: float
     y: float
@@ -714,9 +722,8 @@ class RFKeypoint(BaseModel):
     class_name: str = Field(alias="class")
 
 
-class RFPosePrediction(BaseModel):
-    class Config:
-        allow_population_by_field_name = True
+class RFPosePrediction(_CompatBase):
+    pass  # config inherited from _CompatBase
 
     x: float
     y: float
@@ -729,16 +736,15 @@ class RFPosePrediction(BaseModel):
     keypoints: list[RFKeypoint]
 
 
-class RFClassPrediction(BaseModel):
-    class Config:
-        allow_population_by_field_name = True
+class RFClassPrediction(_CompatBase):
+    pass  # config inherited from _CompatBase
 
     class_name: str = Field(alias="class")
     class_id: int
     confidence: float
 
 
-class RFClassResponse(BaseModel):
+class RFClassResponse(_CompatBase):
     predictions: list[RFClassPrediction]
     top: str
     confidence: float
@@ -747,14 +753,14 @@ class RFClassResponse(BaseModel):
     time: float
 
 
-class RFSegInferResponse(BaseModel):
+class RFSegInferResponse(_CompatBase):
     predictions: list[RFSegPrediction]
     image: RFImageInfo
     inference_id: str
     time: float
 
 
-class RFPoseInferResponse(BaseModel):
+class RFPoseInferResponse(_CompatBase):
     predictions: list[RFPosePrediction]
     image: RFImageInfo
     inference_id: str

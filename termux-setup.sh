@@ -8,7 +8,8 @@ set -e
 
 echo "==> Updating Termux packages..."
 pkg update -y
-pkg install -y python python-numpy libjpeg-turbo
+# clang: pillow has no prebuilt phone package, it compiles on-device
+pkg install -y python python-numpy libjpeg-turbo clang
 
 echo "==> Creating virtualenv (uses system numpy)..."
 python -m venv --system-site-packages ~/jarvis-vision-venv
@@ -19,10 +20,11 @@ echo "==> Installing Python deps (pure-Python pins: pydantic v2 needs Rust, whic
 pip install pillow "fastapi==0.95.2" uvicorn "pydantic>=1.10,<2"
 
 echo "==> Installing ONNX Runtime..."
-if ! pip install onnxruntime; then
-    echo "!! pip install onnxruntime failed. Trying Termux system package..."
-    pkg install -y onnxruntime
-    # system package puts the python bindings where pip can see them via system-site-packages
+# No prebuilt phone package on PyPI, so go straight to the Termux system build.
+if ! pip install onnxruntime 2>/dev/null; then
+    echo "!! pip install onnxruntime failed (no phone build on PyPI). Using Termux system package..."
+    pkg install -y python-onnxruntime
+    # system package puts the python bindings where the venv sees them via system-site-packages
 fi
 python -c "import onnxruntime; print('onnxruntime', onnxruntime.__version__)"
 

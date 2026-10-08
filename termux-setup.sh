@@ -16,7 +16,7 @@ source ~/jarvis-vision-venv/bin/activate
 pip install --upgrade pip
 
 echo "==> Installing Python deps..."
-pip install pillow fastapi "uvicorn[standard]" pydantic
+pip install pillow fastapi uvicorn pydantic
 
 echo "==> Installing ONNX Runtime..."
 if ! pip install onnxruntime; then

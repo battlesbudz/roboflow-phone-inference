@@ -15,7 +15,8 @@ complains.
 
 ```bash
 mkdir -p ~/jarvis-vision && cd ~/jarvis-vision
-# copy server.py, termux-setup.sh, and yolov8n.onnx into this directory
+# copy server.py, termux-setup.sh, the four .onnx files, and synset.txt
+# into this directory
 bash termux-setup.sh
 ```
 
@@ -27,7 +28,8 @@ What the script does:
 2. Creates a venv with `--system-site-packages` so the venv sees that numpy
 3. `pip install pillow fastapi "uvicorn[standard]" pydantic`
 4. `pip install onnxruntime` (see "If onnxruntime won't install" below)
-5. Verifies the import, checks for `yolov8n.onnx`, writes `run.sh`
+5. Verifies the import, checks for the four `.onnx` model files and
+   `synset.txt`, writes `run.sh`
 
 Then:
 
@@ -89,5 +91,5 @@ issue noting the device, Android version, and what fixed it.
 
 - CPU only. ONNX Runtime's Android NNAPI/GPU delegates are not wired up
   here; a future native (Kotlin) version of this server will use them.
-- One model at a time (YOLOv8n, COCO 80 classes). Swapping models means
-  replacing `yolov8n.onnx` and the label list in `server.py`.
+- Four models load at startup (object detection, segmentation, pose,
+  classification — about 55 MB of weights total, plus runtime memory).

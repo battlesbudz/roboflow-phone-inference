@@ -1,12 +1,12 @@
 # Phone Inference
 
-A tiny, self-contained object-detection server that runs on a phone.
+A tiny, self-contained vision server that runs on a phone.
 
-ONNX Runtime + YOLOv8n behind a three-endpoint HTTP API. The full
-Roboflow inference server does this job in 7.3 GB of dependencies and
-~1.1 GB of idle RAM; this does it in ~130 MB on disk and ~160 MB of RAM,
-which is the difference between "runs in a datacenter" and "runs in
-Termux on your phone."
+ONNX Runtime + YOLOv8 nano models and MobileNetV2 behind a six-endpoint
+HTTP API. The full Roboflow inference server does this job in 7.3 GB of
+dependencies and ~1.1 GB of idle RAM; this does it in ~190 MB on disk
+and ~200 MB of RAM, which is the difference between "runs in a
+datacenter" and "runs in Termux on your phone."
 
 ## Why
 
@@ -41,13 +41,20 @@ mid-range phone.
 - `POST /infer/object_detection` — same detections in Roboflow's
   request/response shapes (center x/y, width/height, class, class_id,
   detection_id), so existing Roboflow clients work with minimal changes
+- `POST /infer/instance_segmentation` — boxes plus mask polygons, in
+  Roboflow's instance-segmentation shapes
+- `POST /infer/keypoint_detection` — person boxes plus the 17 COCO
+  keypoints, in Roboflow's keypoint-detection shapes
+- `POST /infer/classification` — ImageNet-1k top-5, in Roboflow's
+  classification shapes
 
 Full contract: [API.md](API.md).
 
-Compatibility note: the `/infer/object_detection` shapes were tested
+Compatibility note: the `/infer/*` shapes were tested
 against inference **1.7.3** (request and response classes, round-tripped
-in `test_rf_compat.py`). That is the verified version, not a permanent
-guarantee. Scope is object detection only.
+in `test_rf_compat.py`, 103 checks). That is the verified version, not a
+permanent guarantee. OCR and CLIP embeddings are intentionally not
+implemented (too heavy for the phone-first pass).
 
 ## Benchmarks
 
@@ -63,12 +70,18 @@ Methodology, raw numbers, and a blank row for your phone's results:
 
 ## Files
 
-- `server.py` — the whole server (~340 lines)
+- `server.py` — the whole server (~750 lines)
 - `termux-setup.sh` — one-shot phone bootstrap
 - `yolov8n.onnx` — YOLOv8 nano, COCO 80 classes (12 MB)
+- `yolov8n-seg.onnx` — YOLOv8 nano segmentation, COCO 80 classes (14 MB)
+- `yolov8n-pose.onnx` — YOLOv8 nano pose, 17 COCO keypoints (14 MB)
+- `mobilenetv2-12.onnx` — MobileNetV2, ImageNet-1k (14 MB)
+- `synset.txt` — the 1000 ImageNet class labels
+- `test-bus.jpg` — real test photo used by the compat suite
 - `test_client.py` — smoke-test client
-- `test_rf_compat.py` — compatibility tests for `/infer/object_detection`
-  (validates against the real inference 1.7.3 request/response classes)
+- `test_rf_compat.py` — compatibility tests for the four `/infer/*`
+  endpoints (validates against the real inference 1.7.3 request/response
+  classes)
 - `API.md` / `BENCHMARKS.md` / `TERMUX.md` — docs
 
 ## Roadmap

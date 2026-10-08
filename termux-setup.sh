@@ -29,15 +29,18 @@ python -c "import onnxruntime; print('onnxruntime', onnxruntime.__version__)"
 echo "==> Setting up server files..."
 mkdir -p ~/jarvis-vision
 cd ~/jarvis-vision
-# server.py and yolov8n.onnx go here (copy from your computer or download link)
+# server.py and the model/label files go here (copy from your computer or
+# download from the repo releases page)
 
-if [ ! -f yolov8n.onnx ]; then
+for f in yolov8n.onnx yolov8n-seg.onnx yolov8n-pose.onnx mobilenetv2-12.onnx synset.txt; do
+  if [ ! -f "$f" ]; then
     echo ""
-    echo "!! yolov8n.onnx is missing from ~/jarvis-vision/"
-    echo "   Download it from the link Scout gave you and place it here,"
+    echo "!! $f is missing from ~/jarvis-vision/"
+    echo "   Download it from the repo (or the link Scout gave you) and place it here,"
     echo "   then re-run this script."
     exit 1
-fi
+  fi
+done
 
 cat > run.sh <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash

@@ -1,11 +1,19 @@
 """
-Compatibility tests for the Roboflow-shaped /infer/object_detection endpoint.
+Compatibility tests for the Roboflow-shaped /infer/* endpoints:
+
+  - /infer/object_detection
+  - /infer/instance_segmentation
+  - /infer/keypoint_detection
+  - /infer/classification
 
 Validates against the REAL inference 1.7.3 classes:
-  - a Roboflow-shaped request dict must parse as ObjectDetectionInferenceRequest
-  - our JSON response must parse as ObjectDetectionInferenceResponse
+  - a Roboflow-shaped request dict must parse as the matching
+    *InferenceRequest class
+  - our JSON response must parse as the matching *InferenceResponse
+    class (or its dataclass twin where the real one is a dataclass)
 
-Run:  ~/workspace/roboflow-spike/venv/bin/python test_rf_compat.py
+Run from this directory:
+  ~/workspace/roboflow-spike/venv/bin/python test_rf_compat.py
 """
 
 import base64
@@ -24,9 +32,16 @@ from server import app, Detection, Box  # noqa: E402
 # Real Roboflow classes (inference 1.7.3). Slow import, done once.
 from inference.core.entities.requests.inference import (  # noqa: E402
     ObjectDetectionInferenceRequest,
+    InstanceSegmentationInferenceRequest,
+    KeypointsDetectionInferenceRequest,
+    ClassificationInferenceRequest,
 )
 from inference.core.entities.responses.inference import (  # noqa: E402
     ObjectDetectionInferenceResponse,
+    InstanceSegmentationPredictionDC,
+    PointDC,
+    KeypointsDetectionInferenceResponse,
+    ClassificationInferenceResponse,
 )
 
 client = TestClient(app)
@@ -190,5 +205,157 @@ httpd.shutdown()
 r = client.post("/infer/object_detection", json={
     "image": {"type": "url", "value": "http://127.0.0.1:1/none.png"}})
 check("unreachable url -> 400", r.status_code == 400)
+
+print("== new request shapes vs real 1.7.3 classes ==")
+BUS_B64 = base64.b64encode(open("test-bus.jpg", "rb").read()).decode()
+BUS_W, BUS_H = 810, 1080
+seg_req = {
+    "image": {"type": "base64", "value": BUS_B64},
+    "api_key": "ignored-locally",
+    "model_id": "ignored-locally",
+    "confidence": 0.5,
+    "iou_threshold": 0.3,
+    "class_filter": ["person", "bus"],
+    "max_detections": 10,
+    "mask_decode_mode": "accurate",
+}
+parsed = InstanceSegmentationInferenceRequest(**seg_req)
+check("real seg request class parses our shape", parsed.mask_decode_mode == "accurate")
+pose_req = dict(seg_req)
+pose_req.update({"keypoint_confidence": 0.5, "keypoint_iou_threshold": 0.5})
+del pose_req["mask_decode_mode"]
+parsed = KeypointsDetectionInferenceRequest(**pose_req)
+check("real pose request class parses our shape", parsed.keypoint_confidence == 0.5)
+cls_req = {
+    "image": {"type": "base64", "value": BUS_B64},
+    "api_key": "ignored-locally",
+    "model_id": "ignored-locally",
+    "confidence": 0.5,
+}
+parsed = ClassificationInferenceRequest(**cls_req)
+check("real classification request class parses our shape", parsed.confidence == 0.5)
+
+print("== POST /infer/instance_segmentation (real model) ==")
+r = client.post("/infer/instance_segmentation", json=seg_req)
+check("seg 200", r.status_code == 200)
+body = r.json()
+check("seg has inference_id+time", isinstance(body.get("inference_id"), str)
+      and isinstance(body.get("time"), (int, float)))
+check("seg image dims echoed", body["image"] == {"width": BUS_W, "height": BUS_H})
+check("seg has predictions", isinstance(body["predictions"], list)
+      and len(body["predictions"]) > 0)
+p0 = body["predictions"][0]
+for k in ("x", "y", "width", "height", "confidence", "class", "class_id",
+          "detection_id", "points"):
+    check(f"seg pred has {k}", k in p0)
+check("seg coords in image",
+      0 <= p0["x"] <= BUS_W and 0 <= p0["y"] <= BUS_H
+      and 0 < p0["width"] <= BUS_W and 0 < p0["height"] <= BUS_H)
+check("seg confidence range", 0.0 <= p0["confidence"] <= 1.0)
+check("seg class sane", p0["class"] in server.COCO_LABELS
+      and p0["class_id"] == server.COCO_LABELS.index(p0["class"]))
+check("seg detection_id present", isinstance(p0["detection_id"], str)
+      and len(p0["detection_id"]) > 0)
+check("seg points non-empty", isinstance(p0["points"], list) and len(p0["points"]) >= 3)
+pt0 = p0["points"][0]
+check("seg point keys", set(pt0.keys()) == {"x", "y"})
+check("seg points in image",
+      all(0 <= q["x"] <= BUS_W and 0 <= q["y"] <= BUS_H for q in p0["points"]))
+# the real 1.7.3 dataclass twin accepts our first prediction's shape
+InstanceSegmentationPredictionDC(
+    x=p0["x"], y=p0["y"], width=p0["width"], height=p0["height"],
+    confidence=p0["confidence"], class_name=p0["class"], class_id=p0["class_id"],
+    points=[PointDC(x=q["x"], y=q["y"]) for q in p0["points"]],
+    detection_id=p0["detection_id"],
+)
+check("real 1.7.3 seg dataclass accepts our shape", True)
+
+r = client.post("/infer/instance_segmentation", json={
+    "image": {"type": "base64", "value": BUS_B64}, "max_detections": 2})
+check("seg max_detections applied", len(r.json()["predictions"]) <= 2)
+r = client.post("/infer/instance_segmentation", json={
+    "image": {"type": "base64", "value": "!!!not-base64!!!"}})
+check("seg bad base64 -> 400", r.status_code == 400)
+r = client.post("/infer/instance_segmentation", json={
+    "image": {"type": "base64", "value": BUS_B64}, "confidence": "nonsense"})
+check('seg confidence "nonsense" -> 400', r.status_code == 400)
+
+print("== POST /infer/keypoint_detection (real model) ==")
+r = client.post("/infer/keypoint_detection", json={
+    **pose_req, "keypoint_confidence": 0.0})
+check("pose 200", r.status_code == 200)
+body = r.json()
+check("pose has inference_id+time", isinstance(body.get("inference_id"), str)
+      and isinstance(body.get("time"), (int, float)))
+check("pose image dims echoed", body["image"] == {"width": BUS_W, "height": BUS_H})
+check("pose has predictions", isinstance(body["predictions"], list)
+      and len(body["predictions"]) > 0)
+p0 = body["predictions"][0]
+for k in ("x", "y", "width", "height", "confidence", "class", "class_id",
+          "detection_id", "keypoints"):
+    check(f"pose pred has {k}", k in p0)
+check("pose is person", p0["class"] == "person" and p0["class_id"] == 0)
+check("pose box in image",
+      0 <= p0["x"] <= BUS_W and 0 <= p0["y"] <= BUS_H
+      and 0 < p0["width"] <= BUS_W and 0 < p0["height"] <= BUS_H)
+check("pose has 17 keypoints", isinstance(p0["keypoints"], list)
+      and len(p0["keypoints"]) == 17)
+k0 = p0["keypoints"][0]
+check("pose keypoint keys", set(k0.keys()) == {"x", "y", "confidence", "class", "class_id"})
+check("pose keypoint names", [k["class"] for k in p0["keypoints"]]
+      == server.COCO_KEYPOINT_NAMES)
+check("pose keypoint ids", [k["class_id"] for k in p0["keypoints"]] == list(range(17)))
+check("pose keypoints in image",
+      all(0 <= k["x"] <= BUS_W and 0 <= k["y"] <= BUS_H for k in p0["keypoints"]))
+check("pose keypoint confidences",
+      all(0.0 <= k["confidence"] <= 1.0 for k in p0["keypoints"]))
+KeypointsDetectionInferenceResponse(**body)
+check("real 1.7.3 pose response class parses our output", True)
+
+r = client.post("/infer/keypoint_detection", json={
+    "image": {"type": "base64", "value": BUS_B64}, "keypoint_confidence": 0.99})
+n_loose = len(client.post("/infer/keypoint_detection", json={
+    "image": {"type": "base64", "value": BUS_B64},
+    "keypoint_confidence": 0.0}).json()["predictions"][0]["keypoints"])
+n_strict = len(r.json()["predictions"][0]["keypoints"]) if r.json()["predictions"] else 0
+check("keypoint_confidence filters", n_strict <= n_loose)
+r = client.post("/infer/keypoint_detection", json={
+    "image": {"type": "base64", "value": BUS_B64}, "confidence": "best"})
+check('pose confidence "best" -> 400 (parity with 1.7.3)', r.status_code == 400)
+r = client.post("/infer/keypoint_detection", json={
+    "image": {"type": "base64", "value": "!!!not-base64!!!"}})
+check("pose bad base64 -> 400", r.status_code == 400)
+
+print("== POST /infer/classification (real model) ==")
+r = client.post("/infer/classification", json=cls_req)
+check("cls 200", r.status_code == 200)
+body = r.json()
+for k in ("top", "confidence", "predictions", "image", "inference_id", "time"):
+    check(f"cls has {k}", k in body)
+check("cls top non-empty", isinstance(body["top"], str) and len(body["top"]) > 0)
+check("cls confidence range", 0.0 <= body["confidence"] <= 1.0)
+check("cls top matches", body["top"] == body["predictions"][0]["class"]
+      and body["confidence"] == body["predictions"][0]["confidence"])
+check("cls top-5", len(body["predictions"]) == 5)
+check("cls sorted desc",
+      all(body["predictions"][i]["confidence"] >= body["predictions"][i + 1]["confidence"]
+          for i in range(4)))
+check("cls class_ids sane",
+      all(isinstance(p["class_id"], int) and 0 <= p["class_id"] < 1000
+          for p in body["predictions"]))
+check("cls image dims echoed", body["image"] == {"width": BUS_W, "height": BUS_H})
+check("cls has inference_id+time", isinstance(body.get("inference_id"), str)
+      and isinstance(body.get("time"), (int, float)))
+ClassificationInferenceResponse(**body)
+check("real 1.7.3 classification response class parses our output", True)
+
+r = client.post("/infer/classification", json={
+    "image": {"type": "base64", "value": BUS_B64}, "confidence": 0.9999})
+b2 = r.json()
+check("cls high threshold clears top", b2["top"] == "" and b2["confidence"] == 0.0)
+check("cls high threshold keeps top-5", len(b2["predictions"]) == 5)
+r = client.post("/infer/classification", json={
+    "image": {"type": "base64", "value": "!!!not-base64!!!"}})
+check("cls bad base64 -> 400", r.status_code == 400)
 
 print(f"\nALL {len(passed)} CHECKS PASSED")

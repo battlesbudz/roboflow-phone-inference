@@ -23,9 +23,7 @@ class Segmenter(private val env: OrtEnvironment, assets: AssetManager) {
     private val inputName: String
 
     init {
-        val opts = OrtSession.SessionOptions().apply {
-            intraOpNumThreads = Runtime.getRuntime().availableProcessors()
-        }
+        val opts = OrtSession.SessionOptions()
         session = env.createSession(assets.open("models/yolov8n-seg.onnx").readBytes(), opts)
         inputName = session.inputNames.iterator().next()
     }

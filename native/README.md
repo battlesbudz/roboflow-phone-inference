@@ -7,8 +7,8 @@ server, no Python, no Termux.
 ## Models
 
 The `.onnx` files live at the **repo root**, shared with the Termux server —
-they are not duplicated in git. At build time the `copyModelAssets` Gradle
-task copies them (plus `synset.txt` and `test-bus.jpg`) into a generated
+they are not duplicated in git. At build time the `copyModels`/`copyModelExtras`
+Gradle tasks copy them (plus `synset.txt` and `test-bus.jpg`) into a generated
 assets directory, so the APK is self-contained:
 
 | Asset path in APK | Endpoint parity with `server.py` |
@@ -18,7 +18,7 @@ assets directory, so the APK is self-contained:
 | `models/yolov8n-pose.onnx` | `PoseDetector` — `/infer/keypoint_detection` |
 | `models/mobilenetv2-12.onnx` | `Classifier` — `/infer/classification` |
 | `synset.txt` | ImageNet-1k labels for the classifier |
-| `test-bus.jpg` | Same test image `test_all.py` uses |
+| `test-bus.jpg` | Bundled benchmark image (street scene with a bus) used by the in-app sweep |
 
 ## Pre/postprocessing parity
 

@@ -2,8 +2,7 @@
 
 Measured 2026-10-06. All numbers are from the same weak test machine unless
 noted: 2 shared vCPUs (AMD EPYC 9D64), no GPU. A modern phone SoC should beat
-the per-frame numbers here; phone results will be added when measured
-(see "On-device results" below).
+the per-frame numbers here; phone results were measured 2026-10-08 (see "On-device results" below).
 
 ## Headline: full inference server vs lean server
 
@@ -58,10 +57,21 @@ running YOLO + ONNX Runtime on Termux reports 12 FPS on a Samsung Galaxy
 A50 (2019 mid-range), which suggests a 2024 flagship will be comfortably
 faster than the numbers above.
 
-| Device | Cold start | Model load | Per-frame | RAM |
-|---|---|---|---|---|
-| Sandbox VM (2x shared EPYC vCPU) | ~2 s | 0.16 s | ~117 ms | 160 MB |
-| Galaxy Z Fold 6 (Snapdragon 8 Gen 3) | TBD | TBD | TBD | TBD |
+All numbers below are HTTP round-trip via `test_all.py` on the same
+`test-bus.jpg` image, same `/infer/*` endpoints, 2026-10-08 (phone) and
+2026-10-09 (VM). Round-trip includes base64 encode, HTTP, server inference,
+and JSON decode.
+
+| Endpoint | Sandbox VM (2x shared AMD EPYC vCPU, no GPU) | Galaxy Z Fold 6 (Snapdragon 8 Gen 3, Termux) |
+|---|---|---|
+| Object detection (YOLOv8n, 5 preds) | 404.3 ms | 285.3 ms |
+| Instance segmentation (YOLOv8n-seg, 3 preds, 134-pt mask) | 367.9 ms | 238.8 ms |
+| Keypoint detection (YOLOv8n-pose, 3 people x 17 kpts) | 378.3 ms | 137.2 ms |
+| Classification (MobileNetV2, minibus 0.723) | 43.0 ms | 50.1 ms |
+
+The phone beats the weak shared VM vCPUs on every endpoint except
+classification (near tie). Model load on the VM: detection 201 ms,
+segmentation 241 ms, pose 143 ms, classification 211 ms.
 
 ## Reproducing
 

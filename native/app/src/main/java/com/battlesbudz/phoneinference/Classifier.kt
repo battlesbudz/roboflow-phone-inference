@@ -19,9 +19,7 @@ class Classifier(private val env: OrtEnvironment, assets: AssetManager) {
     val labels: List<String>
 
     init {
-        val opts = OrtSession.SessionOptions().apply {
-            intraOpNumThreads = Runtime.getRuntime().availableProcessors()
-        }
+        val opts = OrtSession.SessionOptions()
         session = env.createSession(assets.open("models/mobilenetv2-12.onnx").readBytes(), opts)
         inputName = session.inputNames.iterator().next()
         labels = assets.open("synset.txt").bufferedReader().readLines()

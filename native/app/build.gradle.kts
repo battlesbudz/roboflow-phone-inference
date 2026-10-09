@@ -7,18 +7,22 @@ plugins {
 // with the Termux Python server). They are copied into a generated assets
 // directory at build time so the APK stays self-contained without duplicating
 // ~54 MB of binaries in git.
-val copyModelAssets = tasks.register<Copy>("copyModelAssets") {
+// NOTE: no trailing-lambda on from() — Kotlin DSL rejects `from(a, b) { }`
+// ("Passing value as a vararg is only allowed inside a parenthesized
+// argument list"). One Copy task per destination instead.
+val copyModels = tasks.register<Copy>("copyModels") {
     from(
         rootProject.file("../yolov8n.onnx"),
         rootProject.file("../yolov8n-seg.onnx"),
         rootProject.file("../yolov8n-pose.onnx"),
-        rootProject.file("../mobilenetv2-12.onnx"),
-    ) {
-        into("models")
-    }
+        rootProject.file("../mobilenetv2-12.onnx")
+    )
+    into(layout.buildDirectory.dir("generated/assets/models"))
+}
+val copyModelExtras = tasks.register<Copy>("copyModelExtras") {
     from(
         rootProject.file("../synset.txt"),
-        rootProject.file("../test-bus.jpg"),
+        rootProject.file("../test-bus.jpg")
     )
     into(layout.buildDirectory.dir("generated/assets"))
 }
@@ -49,13 +53,13 @@ android {
     }
     sourceSets {
         named("main") {
-            assets.srcDir(copyModelAssets.map { it.destinationDir })
+            assets.srcDir(layout.buildDirectory.dir("generated/assets"))
         }
     }
 }
 
 tasks.named("preBuild") {
-    dependsOn(copyModelAssets)
+    dependsOn(copyModels, copyModelExtras)
 }
 
 dependencies {

@@ -12,6 +12,11 @@ on:
       - ".github/workflows/native-android.yml"
   workflow_dispatch:
 
+# Cancel stale runs: a new push supersedes older in-flight builds on this branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest

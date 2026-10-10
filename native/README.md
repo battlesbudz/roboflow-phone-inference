@@ -55,14 +55,15 @@ Open the app, tap **Run full sweep**. It runs the same four-endpoint sweep as
 `inference_ms` (pure `session.run` time — same definition as the server's
 `inference_ms` field).
 
-Termux baselines to beat (Galaxy Z Fold 6, 2026-10-08):
+Termux baselines to beat (Galaxy Z Fold 6, 2026-10-08), and native results
+measured on-device (Galaxy Z Fold 6, 2026-10-09, `test-bus.jpg` 1920x1280):
 
-| Endpoint | Termux baseline |
-|---|---|
-| detection | ~285 ms |
-| segmentation | ~239 ms |
-| pose | ~137 ms |
-| classification | ~50 ms |
+| Endpoint | Termux baseline | Native |
+|---|---|---|
+| detection | ~285 ms | 119.0 ms (bus 0.923, car 0.898, person 0.882) |
+| segmentation | ~239 ms | 150.6 ms (3 masks, first 30 polygon points) |
+| pose | ~137 ms | 110.9 ms (3 persons, 17 keypoints) |
+| classification | ~50 ms | 16.0 ms (streetcar/tram 0.6862) |
 
 The first run includes one-time kernel init; the sweep does a warmup
 detection first so the reported numbers are steady-state.

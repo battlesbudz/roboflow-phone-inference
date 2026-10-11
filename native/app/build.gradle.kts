@@ -31,6 +31,10 @@ android {
     namespace = "com.battlesbudz.phoneinference"
     compileSdk = 34
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.battlesbudz.phoneinference"
         minSdk = 26

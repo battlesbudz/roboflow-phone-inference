@@ -46,6 +46,37 @@ API (`GET /health`, `POST /detect` with a base64 image and the
   No Play Store needed.
 - **Debug APK:** every push to `feature/native-onnx-app` uploads
   `phone-inference-native-debug` as a workflow artifact.
+
+## Roboflow project models
+
+Tap **Model** in the app and enter a Roboflow API key + workspace + project
++ version to download that project's ONNX weights and use them as the
+detector. The download happens once; inference runs fully offline
+afterwards. The bundled stock weights (YOLOv8n etc.) stay the default so the
+app works on first launch with zero setup, and the app always shows which
+model is active (stock vs `workspace/project vN`).
+
+- Only YOLO-style detection exports (YOLOv8/v11/v12) are supported; the
+  project's boxes feed the same results UI, captions, and `POST /detect`
+  endpoint the stock detector uses. Segmentation, pose, and classification
+  always use the stock models.
+- The API key is stored in EncryptedSharedPreferences (Android Keystore
+  backed), never logged, and never leaves the phone except to talk to
+  `api.roboflow.com`. The Model screen is FLAG_SECURE (no screenshots).
+- Failures are reported in plain language: bad key, unknown
+  workspace/project/version, no ONNX export for that model type, or no
+  network.
+
+Format support (per
+[Roboflow's export docs](https://docs.roboflow.com/models/model-weights/download-roboflow-model-weights)):
+ONNX is the recommended weights format and is available for Roboflow 3.0,
+YOLOv8, YOLOv12, YOLO26, YOLO-NAS, and RF-DETR object detection plus
+classification models; instance segmentation, classification, and keypoint
+detection models also export to ONNX. The app resolves the download through
+`GET https://api.roboflow.com/{workspace}/{project}/{version}/onnx?api_key=…`
+(polling while Roboflow prepares the export) and downloads the signed
+`export.link` URL, the same mechanism the official Python SDK uses for
+format exports.
 - **Build it yourself:** `./gradlew assembleDebug` in `native/`
   (JDK 17). Signed release builds need the keystore, which lives only in
   CI secrets — it is never committed to the repo.

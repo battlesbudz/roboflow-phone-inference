@@ -145,7 +145,14 @@ class VisionService : Service() {
             val engine = EngineHolder.get()
                 ?: return jsonResponse(Response.Status.SERVICE_UNAVAILABLE, """{"error":"models still loading"}""")
             val confidence = req.optDouble("confidence", 0.25).toFloat()
-            val (detections, inferMs) = engine.detector.detect(bitmap, confidence, 0.45f, 300)
+            // Same active-detector selection as VisionActivity: a downloaded
+            // Roboflow project model when one is active, else stock YOLOv8n.
+            val custom = CustomDetectorHolder.get(this@VisionService)
+            val (detections, inferMs) = if (custom != null) {
+                custom.detect(bitmap, confidence, 0.45f, 300)
+            } else {
+                engine.detector.detect(bitmap, confidence, 0.45f, 300)
+            }
             val arr = JSONArray()
             for (d in detections) {
                 arr.put(
@@ -190,6 +197,7 @@ class VisionService : Service() {
             return JSONObject()
                 .put("status", "ok")
                 .put("model", "yolov8n")
+                .put("active_detector", RoboflowModels.activeModelName(this@VisionService))
                 .put("version", BuildConfig.VERSION_NAME)
                 .put("model_load_ms", loadMs["detection"] ?: -1.0)
                 .put("models", models)

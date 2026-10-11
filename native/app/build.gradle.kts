@@ -104,4 +104,7 @@ dependencies {
     // Activity Result APIs.
     implementation("androidx.core:core:1.13.1")
     implementation("androidx.activity:activity:1.9.2")
+    // EncryptedSharedPreferences (Android Keystore backed) for the Roboflow
+    // API key in the Model settings screen.
+    implementation("androidx.security:security-crypto:1.0.0")
 }

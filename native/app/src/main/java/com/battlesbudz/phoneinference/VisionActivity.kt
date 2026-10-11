@@ -37,6 +37,7 @@ import kotlin.math.round
 class VisionActivity : ComponentActivity() {
 
     private lateinit var statusView: TextView
+    private lateinit var modelView: TextView
     private lateinit var preview: ImageView
     private lateinit var answerView: TextView
     private lateinit var photoButton: Button
@@ -46,6 +47,7 @@ class VisionActivity : ComponentActivity() {
     private lateinit var benchmarkOutput: TextView
     private lateinit var benchmarkButton: Button
     private lateinit var serverButton: Button
+    private lateinit var modelButton: Button
     private lateinit var serverInfo: TextView
 
     private var testBitmap: Bitmap? = null
@@ -81,6 +83,9 @@ class VisionActivity : ComponentActivity() {
         sampleButton.setOnClickListener { useSamplePhoto() }
         benchmarkButton.setOnClickListener { toggleBenchmark() }
         serverButton.setOnClickListener { toggleServer() }
+        modelButton.setOnClickListener {
+            startActivity(Intent(this, ModelSettingsActivity::class.java))
+        }
 
         setStatus("Loading models…")
         thread {
@@ -104,6 +109,20 @@ class VisionActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::modelView.isInitialized) refreshModelLabel()
+    }
+
+    private fun refreshModelLabel() {
+        val name = RoboflowModels.activeModelName(this)
+        val err = CustomDetectorHolder.lastError()
+        modelView.text = buildString {
+            append("Model: $name")
+            if (err != null) append(" (failed to load: $err)")
+        }
+    }
+
     // ---------------------------------------------------------- UI construction
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
@@ -120,6 +139,12 @@ class VisionActivity : ComponentActivity() {
             gravity = Gravity.CENTER_HORIZONTAL
         }
         statusView = TextView(this).apply { textSize = 12f }
+        modelView = TextView(this).apply {
+            textSize = 12f
+            setTypeface(typeface, Typeface.ITALIC)
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        refreshModelLabel()
         preview = ImageView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(220)
@@ -160,8 +185,10 @@ class VisionActivity : ComponentActivity() {
         }
         benchmarkButton = Button(this).apply { text = "Benchmark" }
         serverButton = Button(this).apply { text = "Start server" }
+        modelButton = Button(this).apply { text = "Model" }
         toggleRow.addView(benchmarkButton)
         toggleRow.addView(serverButton)
+        toggleRow.addView(modelButton)
 
         serverInfo = TextView(this).apply {
             textSize = 12f
@@ -172,6 +199,7 @@ class VisionActivity : ComponentActivity() {
         benchmarkPane = buildBenchmarkPane().apply { visibility = View.GONE }
 
         root.addView(title)
+        root.addView(modelView)
         root.addView(statusView)
         root.addView(preview)
         root.addView(buttonRow)
@@ -274,8 +302,16 @@ class VisionActivity : ComponentActivity() {
         thread {
             try {
                 val eng = EngineHolder.ensure(assets)
-                eng.detector.detect(bitmap) // warmup: first run includes kernel init
-                val (dets, detMs) = eng.detector.detect(bitmap, 0.25f, 0.45f, 300)
+                // Detection slot: the user's Roboflow project model when one is
+                // active, otherwise the stock YOLOv8n. Everything downstream
+                // (UI, caption, /detect) consumes List<Detection> either way.
+                val custom = CustomDetectorHolder.get(this@VisionActivity)
+                val (dets, detMs) = if (custom != null) {
+                    custom.detect(bitmap, 0.25f, 0.45f, 300)
+                } else {
+                    eng.detector.detect(bitmap) // warmup: first run includes kernel init
+                    eng.detector.detect(bitmap, 0.25f, 0.45f, 300)
+                }
                 val (segs, segMs) = eng.segmenter.segment(bitmap, 0.25f, 0.45f, 300)
                 val (poses, poseMs) = eng.poseDetector.pose(bitmap, 0.25f, 0.45f, 0f, 300)
                 val (top5, clsMs) = eng.classifier.classify(bitmap)

@@ -33,6 +33,23 @@ Phone (Termux): see [TERMUX.md](TERMUX.md). One script installs
 everything; a public project already runs this stack at 12 FPS on a 2019
 mid-range phone.
 
+## Install (Android app)
+
+The native Android app (`native/`, branch `feature/native-onnx-app`) is a
+standalone vision app: take or pick a photo and get a fused description from
+the four on-device models, or point any local agent at its localhost HTTP
+API (`GET /health`, `POST /detect` with a base64 image and the
+`X-Vision-Token` header shown in the app).
+
+- **Release APK:** download the signed APK from the
+  [Releases page](../../releases) (cut from `v*` tags) and sideload it.
+  No Play Store needed.
+- **Debug APK:** every push to `feature/native-onnx-app` uploads
+  `phone-inference-native-debug` as a workflow artifact.
+- **Build it yourself:** `./gradlew assembleDebug` in `native/`
+  (JDK 17). Signed release builds need the keystore, which lives only in
+  CI secrets — it is never committed to the repo.
+
 ## API
 
 - `GET /health` — liveness, model identity, load time

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider paths for camera captures (see VisionActivity.takePhoto).
+     The cache dir needs no storage permission. -->
+<paths>
+    <cache-path name="captures" path="." />
+</paths>

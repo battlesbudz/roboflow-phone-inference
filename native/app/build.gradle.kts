@@ -35,13 +35,37 @@ android {
         applicationId = "com.battlesbudz.phoneinference"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
+    }
+
+    signingConfigs {
+        // Release signing reads the keystore from CI secrets (see the release
+        // job in .github/workflows/native-android.yml). Local release builds
+        // without KEYSTORE_PATH skip signing (unsigned release APK).
+        create("release") {
+            val ksPath = System.getenv("KEYSTORE_PATH")
+            if (!ksPath.isNullOrBlank()) {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            if (!System.getenv("KEYSTORE_PATH").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            // R8 is on for release; keep-rules for the ORT JNI bridge live in
+            // proguard-rules.pro. Debug stays unshrunk.
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     compileOptions {
@@ -65,4 +89,10 @@ tasks.named("preBuild") {
 dependencies {
     // On-device inference. Version pinned; check Maven Central for updates.
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
+    // Localhost HTTP server for the external-agent API (VisionService).
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
+    // FileProvider (camera capture without CAMERA permission) and
+    // Activity Result APIs.
+    implementation("androidx.core:core:1.13.1")
+    implementation("androidx.activity:activity:1.9.3")
 }

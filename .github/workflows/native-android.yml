@@ -77,11 +77,13 @@ jobs:
       - name: Build signed release APK
         env:
           KEYSTORE_PATH: /tmp/release-keystore.p12
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x gradlew
+          # Secrets pasted via the GitHub web UI can carry stray whitespace;
+          # strip it so signing uses the exact keystore credentials.
+          export KEYSTORE_PASSWORD="$(printf '%s' '${{ secrets.KEYSTORE_PASSWORD }}' | tr -d '[:space:]')"
+          export KEY_ALIAS="$(printf '%s' '${{ secrets.KEY_ALIAS }}' | tr -d '[:space:]')"
+          export KEY_PASSWORD="$(printf '%s' '${{ secrets.KEY_PASSWORD }}' | tr -d '[:space:]')"
           ./gradlew assembleRelease --stacktrace
 
       - name: SHA-256 checksum

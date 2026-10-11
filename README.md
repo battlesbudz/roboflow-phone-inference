@@ -110,4 +110,19 @@ Methodology, raw numbers, and a blank row for your phone's results:
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+This project is licensed under the **GNU Affero General Public License v3.0**
+(AGPL-3.0) — see [LICENSE](LICENSE) for the full text.
+
+Why AGPL: the app bundles Ultralytics YOLOv8n model weights, which are
+distributed under AGPL-3.0, and that license flows through to the whole app.
+In short: anyone may use, modify, and redistribute this app — including
+running a modified version as a network service — as long as source changes
+are shared under the same license. (Jarvis itself stays under its own
+license; this app is a dependency/tool, not Jarvis.)
+
+Component licenses:
+- YOLOv8n / YOLOv8n-seg / YOLOv8n-pose weights (Ultralytics) — AGPL-3.0
+- MobileNetV2 weights (ONNX Model Zoo) — Apache-2.0
+- ONNX Runtime (`onnxruntime-android`) — MIT
+- NanoHTTPD — BSD-3-Clause
+- AndroidX (`core`, `activity`) — Apache-2.0

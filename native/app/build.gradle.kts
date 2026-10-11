@@ -99,5 +99,5 @@ dependencies {
     // FileProvider (camera capture without CAMERA permission) and
     // Activity Result APIs.
     implementation("androidx.core:core:1.13.1")
-    implementation("androidx.activity:activity:1.9.3")
+    implementation("androidx.activity:activity:1.9.2")
 }

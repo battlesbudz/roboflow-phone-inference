@@ -71,7 +71,7 @@ class ModelSettingsActivity : Activity() {
             gravity = Gravity.CENTER_HORIZONTAL
         }
         statusView = TextView(this).apply { textSize = 13f }
-        val hint = TextView(this).apply {
+        val explainer = TextView(this).apply {
             text = "Use one of your Roboflow projects as the detector. " +
                 "The app downloads its ONNX weights once, then runs fully offline. " +
                 "Your API key is stored encrypted on this phone and never leaves it " +
@@ -103,7 +103,7 @@ class ModelSettingsActivity : Activity() {
 
         col.addView(title)
         col.addView(statusView)
-        col.addView(hint)
+        col.addView(explainer)
         col.addView(keyField)
         col.addView(workspaceField)
         col.addView(projectField)

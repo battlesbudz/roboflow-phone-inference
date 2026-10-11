@@ -3,7 +3,7 @@ package com.battlesbudz.phoneinference
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.security.crypto.MasterKeys
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -49,13 +49,13 @@ object RoboflowModels {
     class RoboflowException(message: String) : Exception(message)
 
     private fun secretPrefs(context: Context): SharedPreferences {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
+        // security-crypto 1.0.0 API: MasterKeys.getOrCreate returns the
+        // Keystore alias; EncryptedSharedPreferences.create takes it first.
+        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
         return EncryptedSharedPreferences.create(
-            context,
             SECRET_PREFS,
-            masterKey,
+            masterKeyAlias,
+            context,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
         )

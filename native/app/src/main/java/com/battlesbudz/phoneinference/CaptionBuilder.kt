@@ -75,7 +75,7 @@ object CaptionBuilder {
         // Scene hint from the classifier, only when it maps to a setting.
         val top = classes.firstOrNull()
         val scene = top?.let { SCENE_HINTS[it.label] }
-        if (scene != null && top.confidence >= 0.25f) {
+        if (scene != null && (top?.confidence ?: 0f) >= 0.25f) {
             sentences.add("The setting looks like $scene.")
         }
 

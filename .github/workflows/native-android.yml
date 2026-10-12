@@ -53,6 +53,8 @@ jobs:
     # ordinary branch pushes. No tag is created by CI — cut one manually
     # when a public release is approved.
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -97,4 +99,3 @@ jobs:
           files: |
             native/app/build/outputs/apk/release/app-release.apk
             native/app/build/outputs/apk/release/app-release.apk.sha256
-          generate_release_notes: true

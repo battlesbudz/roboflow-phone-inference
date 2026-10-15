@@ -36,7 +36,12 @@ class CustomDetector(
         val opts = OrtSession.SessionOptions()
         session = env.createSession(modelBytes, opts)
         inputName = session.inputNames.iterator().next()
-        val shape = (session.inputInfo[inputName] as? ai.onnxruntime.TensorInfo)?.shape
+        // getInputInfo() returns NodeInfo (name + ValueInfo); the tensor
+        // info lives in NodeInfo.info. Casting NodeInfo itself to
+        // TensorInfo always fails, which made every model fail to load
+        // with "unexpected input". Unwrap .info first; the shape check
+        // below is the real image-detector validation and stays as-is.
+        val shape = (session.inputInfo[inputName]?.info as? ai.onnxruntime.TensorInfo)?.shape
             ?: throw IllegalArgumentException(
                 "The model \"$displayName\" has an unexpected input; only image detectors are supported."
             )

@@ -347,9 +347,16 @@ class VisionActivity : ComponentActivity() {
                 runOnUiThread {
                     answerView.text = caption
                     setStatus(timings)
+                    // The detection branch above may have attempted a lazy
+                    // detector load; refresh the model line so it never
+                    // shows a clean line for a failed model.
+                    refreshModelLabel()
                 }
             } catch (e: Exception) {
-                runOnUiThread { setStatus("Analysis failed: ${e.message}") }
+                runOnUiThread {
+                    setStatus("Analysis failed: ${e.message}")
+                    refreshModelLabel()
+                }
             }
         }
     }
@@ -414,6 +421,10 @@ class VisionActivity : ComponentActivity() {
             runOnUiThread {
                 benchmarkOutput.text = report
                 runButton.isEnabled = true
+                // The sweep above may have attempted a lazy detector load;
+                // refresh the model line so it never shows a clean line
+                // for a failed model.
+                refreshModelLabel()
             }
         }
     }

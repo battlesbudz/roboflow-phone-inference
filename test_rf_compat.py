@@ -208,7 +208,7 @@ check("unreachable url -> 400", r.status_code == 400)
 
 print("== new request shapes vs real 1.7.3 classes ==")
 BUS_B64 = base64.b64encode(open("test-bus.jpg", "rb").read()).decode()
-BUS_W, BUS_H = 810, 1080
+BUS_W, BUS_H = Image.open(io.BytesIO(base64.b64decode(BUS_B64))).size  # read from the actual file, not hardcoded
 seg_req = {
     "image": {"type": "base64", "value": BUS_B64},
     "api_key": "ignored-locally",

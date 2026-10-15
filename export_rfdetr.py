@@ -97,6 +97,11 @@ def insert_boundary_casts(model_path):
         cast = helper.make_node("Cast", [fp16_name], [out.name], to=TensorProto.FLOAT)
         graph.node.append(cast)
 
+    # The fp16 converter can leave stale value_info (e.g. a Cast it
+    # inserted whose output is fp16 but whose value_info still says
+    # fp32). Recompute value_info from the ops BEFORE checking, so the
+    # checker sees a self-consistent graph.
+    model = onnx.shape_inference.infer_shapes(model)
     onnx.checker.check_model(model)
     onnx.save(model, str(model_path))
 

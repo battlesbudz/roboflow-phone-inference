@@ -1,12 +1,13 @@
 name: export-rfdetr
 
 # One-off export: RF-DETR Nano (Roboflow) -> ONNX, dynamically quantized
-# to int8, committed to the branch. Manual dispatch ONLY -- never on push.
-# The export runs export_rfdetr.py, which uses Roboflow's own rfdetr code
-# to export the official COCO checkpoint (fp32), quantizes it with ONNX
-# Runtime's own quantize_dynamic, verifies fp32/quantized parity on
-# test-bus.jpg, and writes RFDETR_PROVENANCE.json. This job then commits
-# rf-detr-nano.onnx + the provenance file to the branch.
+# to int8, committed to the branch. Normally manual dispatch ONLY --
+# never on push. The export runs export_rfdetr.py, which uses Roboflow's
+# own rfdetr code to export the official COCO checkpoint (fp32),
+# quantizes it with ONNX Runtime's own quantize_dynamic, verifies
+# fp32/quantized parity on test-bus.jpg, and writes
+# RFDETR_PROVENANCE.json. This job then commits rf-detr-nano.onnx + the
+# provenance file to the branch.
 #
 # Why the model is committed from the runner instead of pushed via the
 # API: the ONNX is tens of MB, far over the Contents API's practical
@@ -14,9 +15,16 @@ name: export-rfdetr
 
 on:
   workflow_dispatch:
-  # No push trigger: the one-off export landed 2026-10-15 (run 38668310125,
-  # commit 96faaad6b2). Re-running requires a manual dispatch, so a stray
-  # push can never re-export or overwrite the committed model.
+  # TEMPORARY push trigger for the 2026-10-15 ConvInteger re-export
+  # (MatMul-only quantization so the model loads on the phone's
+  # onnxruntime-android 1.22.0). Scoped to export_rfdetr.py on this
+  # branch only. REMOVE after the re-export lands and restore
+  # dispatch-only, so a stray push can never re-export or overwrite
+  # the committed model.
+  push:
+    branches: [feature/native-onnx-app]
+    paths:
+      - export_rfdetr.py
 # 2026-10-14: re-run for the fp16 boundary-Cast fix in export_rfdetr.py.
 # 2026-10-14: re-run for shape-inference value_info refresh after Cast surgery.
 # 2026-10-14: pivot fp16 -> INT8 QDQ (fp16 converter graph rejected by ORT).
@@ -24,6 +32,8 @@ on:
 # export() quantization parameter is TFLite-only and ignored for ONNX,
 # so the INT8 run silently produced a plain 115 MB fp32 file.
 # 2026-10-15: push trigger removed; export landed, workflow is dispatch-only.
+# 2026-10-15: TEMPORARY push trigger restored for the ConvInteger
+# re-export (MatMul-only quantization). Remove after it lands.
 
 permissions:
   contents: write
@@ -55,12 +65,14 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add rf-detr-nano.onnx RFDETR_PROVENANCE.json
           git status --short
-          git commit -m "Bundle RF-DETR Nano (Roboflow) ONNX dynamically quantized + provenance
+          git commit -m "Bundle RF-DETR Nano (Roboflow) ONNX, MatMul-only dynamic quantization + provenance
 
-          Exported with Roboflow's own rfdetr code from the official COCO
-          checkpoint (RFDETRNano), dynamically quantized with ONNX
-          Runtime's quantize_dynamic (MatMul/Gemm/Attention weights to
-          int8). Verified on test-bus.jpg: fp32/quantized parity, bus
-          detected. See RFDETR_PROVENANCE.json for the full export record."
+          Re-export for the 2026-10-15 phone load failure
+          (ORT_NOT_IMPLEMENTED ConvInteger): quantize_dynamic now uses
+          explicit op_types_to_quantize=['MatMul', 'Gemm', 'Attention']
+          so no Conv is quantized, plus a phone-compat op check (no
+          ConvInteger / QLinearConv). Verified on test-bus.jpg:
+          fp32/quantized parity, bus detected. See
+          RFDETR_PROVENANCE.json for the full export record."
           git pull --rebase origin feature/native-onnx-app
           git push origin HEAD:feature/native-onnx-app

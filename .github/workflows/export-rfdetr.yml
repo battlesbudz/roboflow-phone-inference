@@ -40,7 +40,7 @@ jobs:
 
       - name: Install rfdetr + onnxruntime
         run: |
-          pip install "rfdetr==1.9.1" onnx onnxruntime Pillow numpy
+          pip install "rfdetr==1.9.1" onnx onnxconverter-common onnxruntime Pillow numpy
 
       - name: Export + verify + write provenance
         run: python export_rfdetr.py

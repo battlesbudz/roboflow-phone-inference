@@ -9,8 +9,8 @@ Pipeline:
   1. Instantiate Roboflow's RFDETRNano() (downloads the official COCO
      pretrained checkpoint from HuggingFace, roboflow org) and export
      to ONNX fp32 with Roboflow's own rfdetr export code.
-  2. Convert the fp32 ONNX to fp16 with onnx's float16 converter
-     (weights only; inputs/outputs stay fp32). RF-DETR Nano is ~30.5M
+  2. Convert the fp32 ONNX to fp16 with onnxconverter-common's float16
+     converter (weights only; inputs/outputs stay fp32). RF-DETR Nano is ~30.5M
      params, so fp32 is ~122 MB -- over GitHub's 100 MB file limit.
      fp16 lands at ~61 MB and is a mechanical precision conversion,
      not a retrain.
@@ -40,7 +40,7 @@ def sha256_of(path):
 
 def main():
     import onnx
-    from onnx import float16
+    from onnxconverter_common import float16
 
     import verify_rfdetr
 
@@ -108,7 +108,7 @@ def main():
                   "official COCO checkpoint downloaded by RFDETRNano() from HuggingFace (roboflow org)",
         "rfdetr_version": rfdetr_version,
         "export": "model.export(output_dir) with Roboflow's rfdetr ONNX exporter (opset 17, fp32), "
-                  "then onnx float16 converter (weights only, keep_io_types=True)",
+                  "then onnxconverter-common float16 converter (weights only, keep_io_types=True)",
         "license": "Apache 2.0 (RF-DETR-N is Apache 2.0 per roboflow/rf-detr README benchmarks)",
         "file": "rf-detr-nano.onnx",
         "sha256": sha256_of(str(fp16_path)),

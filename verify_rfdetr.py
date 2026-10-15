@@ -105,6 +105,9 @@ def decode(dets, labels, orig_w, orig_h, threshold=0.3):
     return out
 
 
+# 2026-10-15: verify run against the MatMul-only re-exported model.
+
+
 def check_phone_compat(model_path):
     """Fail if the model contains ops onnxruntime-android 1.22.0
     (the phone build) cannot run. 2026-10-15: a dynamically quantized

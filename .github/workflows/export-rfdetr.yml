@@ -1,15 +1,16 @@
 name: export-rfdetr
 
-# One-off export: RF-DETR Nano (Roboflow) -> ONNX INT8 (QDQ), committed
-# to the branch. Manual dispatch ONLY -- never on push. The export runs
-# export_rfdetr.py, which uses Roboflow's own rfdetr code to export the
-# official COCO checkpoint with quantization="int8", verifies fp32/INT8
-# parity on test-bus.jpg, and writes RFDETR_PROVENANCE.json. This job
-# then commits rf-detr-nano.onnx + the provenance file to the branch.
+# One-off export: RF-DETR Nano (Roboflow) -> ONNX, dynamically quantized
+# to int8, committed to the branch. Manual dispatch ONLY -- never on push.
+# The export runs export_rfdetr.py, which uses Roboflow's own rfdetr code
+# to export the official COCO checkpoint (fp32), quantizes it with ONNX
+# Runtime's own quantize_dynamic, verifies fp32/quantized parity on
+# test-bus.jpg, and writes RFDETR_PROVENANCE.json. This job then commits
+# rf-detr-nano.onnx + the provenance file to the branch.
 #
 # Why the model is committed from the runner instead of pushed via the
-# API: the ONNX is ~61 MB, far over the Contents API's practical payload
-# limits. The runner pushes with GITHUB_TOKEN instead.
+# API: the ONNX is tens of MB, far over the Contents API's practical
+# payload limits. The runner pushes with GITHUB_TOKEN instead.
 
 on:
   workflow_dispatch:
@@ -19,6 +20,9 @@ on:
 # 2026-10-14: re-run for the fp16 boundary-Cast fix in export_rfdetr.py.
 # 2026-10-14: re-run for shape-inference value_info refresh after Cast surgery.
 # 2026-10-14: pivot fp16 -> INT8 QDQ (fp16 converter graph rejected by ORT).
+# 2026-10-15: pivot INT8 QDQ -> ORT dynamic quantization. rfdetr's
+# export() quantization parameter is TFLite-only and ignored for ONNX,
+# so the INT8 run silently produced a plain 115 MB fp32 file.
   push:
     branches: [feature/native-onnx-app]
     paths: [.github/workflows/export-rfdetr.yml]
@@ -53,11 +57,12 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add rf-detr-nano.onnx RFDETR_PROVENANCE.json
           git status --short
-          git commit -m "Bundle RF-DETR Nano (Roboflow) ONNX fp16 + provenance
+          git commit -m "Bundle RF-DETR Nano (Roboflow) ONNX dynamically quantized + provenance
 
           Exported with Roboflow's own rfdetr code from the official COCO
-          checkpoint (RFDETRNano), converted fp32 -> fp16 (weights only).
-          Verified on test-bus.jpg: fp32/fp16 parity, bus detected.
-          See RFDETR_PROVENANCE.json for the full export record."
+          checkpoint (RFDETRNano), dynamically quantized with ONNX
+          Runtime's quantize_dynamic (MatMul/Gemm/Attention weights to
+          int8). Verified on test-bus.jpg: fp32/quantized parity, bus
+          detected. See RFDETR_PROVENANCE.json for the full export record."
           git pull --rebase origin feature/native-onnx-app
           git push origin HEAD:feature/native-onnx-app

@@ -70,7 +70,7 @@ Methodology, raw numbers, and a blank row for your phone's results:
 
 ## Files
 
-- `server.py` — the whole server (~750 lines)
+- `server.py` — the whole server (~880 lines)
 - `termux-setup.sh` — one-shot phone bootstrap
 - `yolov8n.onnx` — YOLOv8 nano, COCO 80 classes (12 MB)
 - `yolov8n-seg.onnx` — YOLOv8 nano segmentation, COCO 80 classes (14 MB)
@@ -81,15 +81,17 @@ Methodology, raw numbers, and a blank row for your phone's results:
 - `test_client.py` — smoke-test client
 - `test_rf_compat.py` — compatibility tests for the four `/infer/*`
   endpoints (validates against the real inference 1.7.3 request/response
-  classes)
+  classes; needs the full inference package, so it runs locally only)
+- `test_smoke.py` — lightweight smoke suite for the same endpoints
+  (no inference package); this is what CI runs on every push
 - `API.md` / `BENCHMARKS.md` / `TERMUX.md` — docs
 
 ## Roadmap
 
-- On-device benchmark numbers (in progress)
-- Native Android (Kotlin + ONNX Runtime, NNAPI delegate) version to
-  replace the Termux/Python layer
 - Direct integration with the on-device assistant's tool loop
+- Native Android version: DONE — the standalone vision app
+  (Kotlin + ONNX Runtime) shipped as [v1.0.0](https://github.com/battlesbudz/roboflow-phone-inference/releases/tag/v1.0.0)
+  on the `feature/native-onnx-app` branch
 
 ## License
 

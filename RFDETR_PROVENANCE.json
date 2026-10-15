@@ -2,12 +2,12 @@
   "model": "RF-DETR Nano (RFDETRNano), COCO pretrained",
   "source": "Roboflow rfdetr package (github.com/roboflow/rf-detr), official COCO checkpoint downloaded by RFDETRNano() from HuggingFace (roboflow org)",
   "rfdetr_version": "1.9.1",
-  "export": "model.export(format='onnx') with Roboflow's rfdetr ONNX exporter (opset 17, fp32), then onnxruntime.quantization.quantize_dynamic (MatMul/Gemm/Attention weights to int8; Conv layers stay fp32). rfdetr's export() quantization parameter is TFLite-only and ignored for ONNX; the fp32 export (~115 MB) exceeds GitHub's 100 MB file limit, so dynamic quantization is what makes the file committable.",
-  "quantization": "dynamic int8 (onnxruntime.quantization.quantize_dynamic, onnxruntime 1.31.0); weights int8, activations fp32",
+  "export": "model.export(format='onnx') with Roboflow's rfdetr ONNX exporter (opset 17, fp32), then onnxruntime.quantization.quantize_dynamic with explicit op_types_to_quantize=['MatMul', 'Gemm', 'Attention'] (MatMul/Gemm/Attention weights to int8; Conv never quantized \u2014 phone ORT 1.22.0 has no ConvInteger kernel). rfdetr's export() quantization parameter is TFLite-only and ignored for ONNX; the fp32 export (~115 MB) exceeds GitHub's 100 MB file limit, so dynamic quantization is what makes the file committable.",
+  "quantization": "dynamic int8, MatMul/Gemm/Attention only (onnxruntime.quantization.quantize_dynamic, onnxruntime 1.31.0); weights int8, activations fp32; Conv stays fp32; phone-compat op check passed (no ConvInteger/QLinearConv)",
   "license": "Apache 2.0 (RF-DETR-N is Apache 2.0 per roboflow/rf-detr README benchmarks)",
   "file": "rf-detr-nano.onnx",
-  "sha256": "f7c92e6a301ed898fe5d14b1ef7930388479748b5c5b21f1ded652dee4a021b4",
-  "size_bytes": 35131368,
+  "sha256": "df0fb11a74636e0ec9b735455080fde8d51d4ff86b24f93e4f2626b77e0c4ab9",
+  "size_bytes": 40379156,
   "input": {
     "name": "input",
     "shape": [
@@ -52,14 +52,14 @@
         "handbag",
         "bench"
       ],
-      "latency_ms_mean": 81.9
+      "latency_ms_mean": 195.5
     },
     "quantized": {
       "detections": [
-        "car",
         "bus",
         "car",
         "person",
+        "car",
         "car",
         "person",
         "person",
@@ -67,9 +67,9 @@
         "handbag",
         "person"
       ],
-      "latency_ms_mean": 58.9
+      "latency_ms_mean": 131.1
     },
     "parity": "same top-5 label set, scores within 0.1"
   },
-  "exported_at_utc": "2026-10-15T01:58:10Z"
+  "exported_at_utc": "2026-10-15T02:52:26Z"
 }

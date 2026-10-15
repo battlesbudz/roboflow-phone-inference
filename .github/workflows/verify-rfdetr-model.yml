@@ -30,7 +30,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install onnxruntime
-        run: pip install onnxruntime Pillow numpy
+        run: pip install onnxruntime onnx Pillow numpy
 
       - name: Verify RF-DETR model (Roboflow decode contract)
         run: python verify_rfdetr.py --model rf-detr-nano.onnx --image test-bus.jpg --require-label bus

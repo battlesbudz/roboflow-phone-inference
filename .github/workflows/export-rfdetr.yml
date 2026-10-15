@@ -1,0 +1,55 @@
+name: export-rfdetr
+
+# One-off export: RF-DETR Nano (Roboflow) -> ONNX fp16, committed to the
+# branch. Manual dispatch ONLY -- never on push. The export runs
+# export_rfdetr.py, which uses Roboflow's own rfdetr code to export the
+# official COCO checkpoint, converts fp32 -> fp16 (GitHub's 100 MB file
+# limit blocks the ~122 MB fp32 file), verifies fp32/fp16 parity on
+# test-bus.jpg, and writes RFDETR_PROVENANCE.json. This job then commits
+# rf-detr-nano.onnx + the provenance file to the branch.
+#
+# Why the model is committed from the runner instead of pushed via the
+# API: the ONNX is ~61 MB, far over the Contents API's practical payload
+# limits. The runner pushes with GITHUB_TOKEN instead.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/native-onnx-app
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install rfdetr + onnxruntime
+        run: |
+          pip install "rfdetr==1.9.1" onnx onnxruntime Pillow numpy
+
+      - name: Export + verify + write provenance
+        run: python export_rfdetr.py
+
+      - name: Commit model + provenance
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add rf-detr-nano.onnx RFDETR_PROVENANCE.json
+          git status --short
+          git commit -m "Bundle RF-DETR Nano (Roboflow) ONNX fp16 + provenance
+
+          Exported with Roboflow's own rfdetr code from the official COCO
+          checkpoint (RFDETRNano), converted fp32 -> fp16 (weights only).
+          Verified on test-bus.jpg: fp32/fp16 parity, bus detected.
+          See RFDETR_PROVENANCE.json for the full export record."
+          git pull --rebase origin feature/native-onnx-app
+          git push origin HEAD:feature/native-onnx-app

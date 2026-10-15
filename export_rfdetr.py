@@ -37,6 +37,21 @@ Why dynamic quantization, and why not the alternatives:
     quantization brings it well under the limit while keeping the
     model loadable by ONNX Runtime on the phone (same runtime the
     app already ships).
+
+  2026-10-15 phone failure: the first dynamically quantized model
+  FAILED to load on the phone with ORT_NOT_IMPLEMENTED ("Could not
+  find an implementation for ConvInteger(10) node ...
+  /patch_embeddings/projection/Conv_quant"). The app ships
+  onnxruntime-android 1.22.0, whose build has no ConvInteger kernel,
+  while the CI runner's newer Python ORT runs it fine. Root cause:
+  onnxruntime 1.31's quantize_dynamic defaults quantize Conv as well
+  (despite the docstring claim above that Conv stays fp32), producing
+  ConvInteger ops. Fix: pass op_types_to_quantize=["MatMul", "Gemm",
+  "Attention"] explicitly so no Conv is ever quantized, and assert
+  after quantization that the graph contains no ConvInteger /
+  QLinearConv nodes (phone-compat check). MatMul-only dynamic
+  quantization uses DynamicQuantizeLinear + MatMul + DequantizeLinear,
+  all supported by onnxruntime-android 1.22.0.
 """
 
 import hashlib
@@ -88,12 +103,35 @@ def main():
 
     print(f"onnxruntime version: {ort.__version__}")
     out_path = root / "rf-detr-nano.onnx"
-    quantize_dynamic(str(fp32_path), str(out_path))
+    # MatMul-only: Conv must NOT be quantized. ORT 1.31's
+    # quantize_dynamic defaults include Conv, which produces
+    # ConvInteger ops that onnxruntime-android 1.22.0 (the phone
+    # build) cannot run (ORT_NOT_IMPLEMENTED on-device 2026-10-15).
+    quantize_dynamic(
+        str(fp32_path),
+        str(out_path),
+        op_types_to_quantize=["MatMul", "Gemm", "Attention"],
+    )
     size_mb = out_path.stat().st_size / 1e6
     print(f"quantized: {out_path.name} ({size_mb:.1f} MB)")
     if size_mb > 95:
         print(f"FAIL: quantized model {size_mb:.1f} MB is too close to GitHub's 100 MB file limit")
         sys.exit(1)
+
+    # Phone-compat check: the quantized graph must contain no ops
+    # that onnxruntime-android 1.22.0 cannot run. ConvInteger /
+    # QLinearConv are the quantized-Conv ops; their presence means a
+    # Conv got quantized and the model will fail to load on the phone.
+    import onnx
+    from collections import Counter
+    graph = onnx.load(str(out_path)).graph
+    op_counts = Counter(n.op_type for n in graph.node)
+    print(f"quantized op types: {dict(op_counts)}")
+    bad = sorted(set(op_counts) & {"ConvInteger", "QLinearConv"})
+    if bad:
+        print(f"FAIL: quantized model contains phone-incompatible ops: {bad}")
+        sys.exit(1)
+    print("phone-compat op check OK (no ConvInteger / QLinearConv)")
 
     # 3. Verify fp32 vs quantized on the bundled test image.
     image = root / "test-bus.jpg"
@@ -130,12 +168,15 @@ def main():
                   "official COCO checkpoint downloaded by RFDETRNano() from HuggingFace (roboflow org)",
         "rfdetr_version": rfdetr_version,
         "export": "model.export(format='onnx') with Roboflow's rfdetr ONNX exporter (opset 17, fp32), "
-                  "then onnxruntime.quantization.quantize_dynamic (MatMul/Gemm/Attention weights "
-                  "to int8; Conv layers stay fp32). rfdetr's export() quantization parameter is "
+                  "then onnxruntime.quantization.quantize_dynamic with explicit "
+                  "op_types_to_quantize=['MatMul', 'Gemm', 'Attention'] (MatMul/Gemm/Attention "
+                  "weights to int8; Conv never quantized — phone ORT 1.22.0 has no ConvInteger "
+                  "kernel). rfdetr's export() quantization parameter is "
                   "TFLite-only and ignored for ONNX; the fp32 export (~115 MB) exceeds GitHub's "
                   "100 MB file limit, so dynamic quantization is what makes the file committable.",
-        "quantization": "dynamic int8 (onnxruntime.quantization.quantize_dynamic, "
-                        f"onnxruntime {ort.__version__}); weights int8, activations fp32",
+        "quantization": "dynamic int8, MatMul/Gemm/Attention only (onnxruntime.quantization.quantize_dynamic, "
+                        f"onnxruntime {ort.__version__}); weights int8, activations fp32; "
+                        "Conv stays fp32; phone-compat op check passed (no ConvInteger/QLinearConv)",
         "license": "Apache 2.0 (RF-DETR-N is Apache 2.0 per roboflow/rf-detr README benchmarks)",
         "file": "rf-detr-nano.onnx",
         "sha256": sha256_of(str(out_path)),

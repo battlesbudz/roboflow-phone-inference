@@ -17,6 +17,7 @@ on:
   # Push trigger exists because the API token cannot dispatch workflows
   # (Actions: write not granted). Pushing this file runs the export once.
   # Remove the push trigger after the one-off export lands.
+# 2026-10-14: re-run for the fp16 boundary-Cast fix in export_rfdetr.py.
   push:
     branches: [feature/native-onnx-app]
     paths: [.github/workflows/export-rfdetr.yml]

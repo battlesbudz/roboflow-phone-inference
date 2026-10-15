@@ -15,16 +15,6 @@ name: export-rfdetr
 
 on:
   workflow_dispatch:
-  # TEMPORARY push trigger for the 2026-10-15 ConvInteger re-export
-  # (MatMul-only quantization so the model loads on the phone's
-  # onnxruntime-android 1.22.0). Scoped to export_rfdetr.py on this
-  # branch only. REMOVE after the re-export lands and restore
-  # dispatch-only, so a stray push can never re-export or overwrite
-  # the committed model.
-  push:
-    branches: [feature/native-onnx-app]
-    paths:
-      - export_rfdetr.py
 # 2026-10-14: re-run for the fp16 boundary-Cast fix in export_rfdetr.py.
 # 2026-10-14: re-run for shape-inference value_info refresh after Cast surgery.
 # 2026-10-14: pivot fp16 -> INT8 QDQ (fp16 converter graph rejected by ORT).
@@ -33,7 +23,8 @@ on:
 # so the INT8 run silently produced a plain 115 MB fp32 file.
 # 2026-10-15: push trigger removed; export landed, workflow is dispatch-only.
 # 2026-10-15: TEMPORARY push trigger restored for the ConvInteger
-# re-export (MatMul-only quantization). Remove after it lands.
+# re-export (MatMul-only quantization). Removed after it landed
+# (run 38673123516); workflow is dispatch-only again.
 
 permissions:
   contents: write

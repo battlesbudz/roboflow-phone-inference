@@ -1,12 +1,11 @@
 name: export-rfdetr
 
-# One-off export: RF-DETR Nano (Roboflow) -> ONNX fp16, committed to the
-# branch. Manual dispatch ONLY -- never on push. The export runs
+# One-off export: RF-DETR Nano (Roboflow) -> ONNX INT8 (QDQ), committed
+# to the branch. Manual dispatch ONLY -- never on push. The export runs
 # export_rfdetr.py, which uses Roboflow's own rfdetr code to export the
-# official COCO checkpoint, converts fp32 -> fp16 (GitHub's 100 MB file
-# limit blocks the ~122 MB fp32 file), verifies fp32/fp16 parity on
-# test-bus.jpg, and writes RFDETR_PROVENANCE.json. This job then commits
-# rf-detr-nano.onnx + the provenance file to the branch.
+# official COCO checkpoint with quantization="int8", verifies fp32/INT8
+# parity on test-bus.jpg, and writes RFDETR_PROVENANCE.json. This job
+# then commits rf-detr-nano.onnx + the provenance file to the branch.
 #
 # Why the model is committed from the runner instead of pushed via the
 # API: the ONNX is ~61 MB, far over the Contents API's practical payload
@@ -19,6 +18,7 @@ on:
   # Remove the push trigger after the one-off export lands.
 # 2026-10-14: re-run for the fp16 boundary-Cast fix in export_rfdetr.py.
 # 2026-10-14: re-run for shape-inference value_info refresh after Cast surgery.
+# 2026-10-14: pivot fp16 -> INT8 QDQ (fp16 converter graph rejected by ORT).
   push:
     branches: [feature/native-onnx-app]
     paths: [.github/workflows/export-rfdetr.yml]
@@ -42,7 +42,7 @@ jobs:
 
       - name: Install rfdetr + onnxruntime
         run: |
-          pip install "rfdetr==1.9.1" onnx onnxconverter-common onnxruntime Pillow numpy
+          pip install "rfdetr==1.9.1" onnx onnxruntime Pillow numpy
 
       - name: Export + verify + write provenance
         run: python export_rfdetr.py

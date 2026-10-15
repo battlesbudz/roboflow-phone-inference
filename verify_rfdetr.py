@@ -105,9 +105,31 @@ def decode(dets, labels, orig_w, orig_h, threshold=0.3):
     return out
 
 
+def check_phone_compat(model_path):
+    """Fail if the model contains ops onnxruntime-android 1.22.0
+    (the phone build) cannot run. 2026-10-15: a dynamically quantized
+    model with ConvInteger nodes failed to load on the phone with
+    ORT_NOT_IMPLEMENTED while the CI runner's newer Python ORT ran
+    it fine. ConvInteger / QLinearConv are the quantized-Conv ops;
+    MatMul-only dynamic quantization never produces them."""
+    import onnx
+    from collections import Counter
+    graph = onnx.load(str(model_path)).graph
+    op_counts = Counter(n.op_type for n in graph.node)
+    bad = sorted(set(op_counts) & {"ConvInteger", "QLinearConv"})
+    if bad:
+        raise ValueError(
+            f"phone-incompatible ops in {model_path}: {bad} "
+            "(onnxruntime-android 1.22.0 has no ConvInteger kernel)")
+    return dict(op_counts)
+
+
 def run_model(model_path, image_path, threshold=0.3, iters=3):
     """Returns a dict with input/output shapes, detections, latency."""
     import onnxruntime as ort
+
+    op_counts = check_phone_compat(model_path)
+    print(f"phone-compat op check OK: {op_counts}")
 
     sess = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
     inp = sess.get_inputs()[0]

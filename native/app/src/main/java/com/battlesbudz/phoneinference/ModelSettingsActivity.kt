@@ -17,10 +17,12 @@ import kotlin.concurrent.thread
 /**
  * "Bring your Roboflow project to your phone."
  *
- * The user enters a Roboflow API key + workspace + project + version. The
- * app downloads that project's ONNX weights ([RoboflowModels]) and runs
- * them in the detection slot, fully offline afterwards. The bundled stock
- * weights stay the default fallback; the active model is always shown.
+ * The default detector is the bundled RF-DETR Nano (Roboflow's own
+ * architecture, `models/rf-detr-nano.onnx`). From here the user can switch
+ * to the stock models or enter a Roboflow API key + workspace + project +
+ * version; the app then downloads that project's ONNX weights
+ * ([RoboflowModels]) and runs them in the detection slot, fully offline
+ * afterwards. The active model is always shown.
  *
  * The API key is stored in EncryptedSharedPreferences (Android Keystore
  * backed) and is never logged. FLAG_SECURE keeps the key out of screenshots
@@ -36,6 +38,7 @@ class ModelSettingsActivity : Activity() {
     private lateinit var progressView: TextView
     private lateinit var downloadButton: Button
     private lateinit var stockButton: Button
+    private lateinit var rfdetrButton: Button
 
     private var busy = false
 
@@ -50,6 +53,7 @@ class ModelSettingsActivity : Activity() {
 
         downloadButton.setOnClickListener { downloadClicked() }
         stockButton.setOnClickListener { stockClicked() }
+        rfdetrButton.setOnClickListener { rfdetrClicked() }
     }
 
     override fun onResume() {
@@ -72,10 +76,11 @@ class ModelSettingsActivity : Activity() {
         }
         statusView = TextView(this).apply { textSize = 13f }
         val explainer = TextView(this).apply {
-            text = "Use one of your Roboflow projects as the detector. " +
-                "The app downloads its ONNX weights once, then runs fully offline. " +
-                "Your API key is stored encrypted on this phone and never leaves it " +
-                "except to talk to Roboflow."
+            text = "The bundled RF-DETR Nano (Roboflow's own model) is the default " +
+                "detector. Switch to the stock models, or use one of your Roboflow " +
+                "projects as the detector: the app downloads its ONNX weights once, " +
+                "then runs fully offline. Your API key is stored encrypted on this " +
+                "phone and never leaves it except to talk to Roboflow."
             textSize = 12f
         }
 
@@ -98,6 +103,7 @@ class ModelSettingsActivity : Activity() {
         versionField.setText(ver)
 
         downloadButton = Button(this).apply { text = "Download & use this model" }
+        rfdetrButton = Button(this).apply { text = "Use RF-DETR Nano (Roboflow, bundled)" }
         stockButton = Button(this).apply { text = "Use stock models" }
         progressView = TextView(this).apply { textSize = 12f }
 
@@ -109,6 +115,7 @@ class ModelSettingsActivity : Activity() {
         col.addView(projectField)
         col.addView(versionField)
         col.addView(downloadButton)
+        col.addView(rfdetrButton)
         col.addView(stockButton)
         col.addView(progressView)
         return ScrollView(this).apply { addView(col) }
@@ -116,16 +123,21 @@ class ModelSettingsActivity : Activity() {
 
     private fun refreshStatus() {
         val active = RoboflowModels.activeModelName(this)
-        val err = CustomDetectorHolder.lastError()
+        val err = when (RoboflowModels.detectionMode(this)) {
+            RoboflowModels.MODE_RFDETR -> RfDetrDetectorHolder.lastError()
+            RoboflowModels.MODE_CUSTOM -> CustomDetectorHolder.lastError()
+            else -> null
+        }
         statusView.text = buildString {
             append("Active model: $active")
-            if (err != null) append("\nNote: the custom model failed to load ($err); stock is being used.")
+            if (err != null) append("\nNote: $active failed to load ($err); stock is being used.")
         }
     }
 
     private fun setBusy(b: Boolean) {
         busy = b
         downloadButton.isEnabled = !b
+        rfdetrButton.isEnabled = !b
         stockButton.isEnabled = !b
     }
 
@@ -176,6 +188,14 @@ class ModelSettingsActivity : Activity() {
                 }
             }
         }
+    }
+
+    private fun rfdetrClicked() {
+        if (busy) return
+        RoboflowModels.setDetectionMode(this, RoboflowModels.MODE_RFDETR)
+        refreshStatus()
+        progressView.text = "Switched to the bundled RF-DETR Nano."
+        Toast.makeText(this, "Using RF-DETR Nano (Roboflow, bundled)", Toast.LENGTH_SHORT).show()
     }
 
     private fun stockClicked() {

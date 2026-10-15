@@ -14,12 +14,14 @@ import org.json.JSONObject
 /**
  * Manages an optional user-supplied Roboflow project model.
  *
- * The bundled stock weights (YOLOv8n etc.) stay the default so the app works
- * on first launch with zero setup. From the Model settings screen the user
- * can enter a Roboflow API key + workspace + project + version; this object
- * then downloads that project's ONNX weights via the Roboflow REST API,
- * stores them in app-private storage, and marks them active. The active
- * detector (stock or custom) is chosen by [CustomDetectorHolder].
+ * The bundled stock weights (YOLOv8n etc.) stay the fallback so the app works
+ * on first launch with zero setup. The DEFAULT detector is the bundled
+ * RF-DETR Nano (Roboflow's own architecture, `models/rf-detr-nano.onnx`),
+ * loaded by [RfDetrDetectorHolder]. From the Model settings screen the user
+ * can switch between RF-DETR, stock, and a Roboflow project model
+ * (downloaded via the Roboflow REST API, stored in app-private storage,
+ * and marked active). The active detector is chosen by the detection mode
+ * ([detectionMode]); [CustomDetectorHolder] handles the custom case.
  *
  * API surface used (verified against the roboflow-python SDK source and
  * https://docs.roboflow.com/models/model-weights/download-roboflow-model-weights):
@@ -43,7 +45,13 @@ object RoboflowModels {
     private const val KEY_VERSION = "version"
     private const val KEY_DISPLAY_NAME = "display_name"
     private const val KEY_LABELS = "labels_json"
+    private const val KEY_DETECTION_MODE = "detection_mode"
     private const val MODEL_FILE = "roboflow_model.onnx"
+
+    /** Detection modes. RF-DETR (bundled) is the default; stock is the fallback. */
+    const val MODE_RFDETR = "rfdetr"
+    const val MODE_STOCK = "stock"
+    const val MODE_CUSTOM = "custom"
 
     /** Plain-language failure; safe to show in the UI. Never carries the key. */
     class RoboflowException(message: String) : Exception(message)
@@ -88,10 +96,25 @@ object RoboflowModels {
         )
     }
 
-    /** Human-readable active model, e.g. "my-workspace/my-project v3" or the stock label. */
+    /** Which detector is active. Defaults to RF-DETR (bundled). */
+    fun detectionMode(context: Context): String =
+        modelPrefs(context).getString(KEY_DETECTION_MODE, null) ?: MODE_RFDETR
+
+    fun setDetectionMode(context: Context, mode: String) {
+        require(mode in setOf(MODE_RFDETR, MODE_STOCK, MODE_CUSTOM)) {
+            "Unknown detection mode: $mode"
+        }
+        modelPrefs(context).edit().putString(KEY_DETECTION_MODE, mode).apply()
+    }
+
+    /** Human-readable active model, reflecting the detection mode. */
     fun activeModelName(context: Context): String =
-        modelPrefs(context).getString(KEY_DISPLAY_NAME, null)
-            ?: "Stock models (YOLOv8n + MobileNetV2)"
+        when (detectionMode(context)) {
+            MODE_RFDETR -> "RF-DETR Nano (Roboflow, bundled)"
+            MODE_CUSTOM -> modelPrefs(context).getString(KEY_DISPLAY_NAME, null)
+                ?: "Stock models (YOLOv8n + MobileNetV2)"
+            else -> "Stock models (YOLOv8n + MobileNetV2)"
+        }
 
     fun hasCustomModel(context: Context): Boolean =
         modelPrefs(context).getString(KEY_DISPLAY_NAME, null) != null &&
@@ -115,6 +138,8 @@ object RoboflowModels {
         modelFile(context).delete()
         // Keep the API key: the user may just be switching back to stock.
         CustomDetectorHolder.invalidate()
+        // clear() wiped the mode too; stock is the fallback.
+        setDetectionMode(context, MODE_STOCK)
     }
 
     private fun enc(segment: String): String =
@@ -237,6 +262,7 @@ object RoboflowModels {
             .putString(KEY_DISPLAY_NAME, "$workspace/$project v$version")
             .putString(KEY_LABELS, org.json.JSONArray(labels).toString())
             .apply()
+        setDetectionMode(context, MODE_CUSTOM)
         CustomDetectorHolder.invalidate()
         onProgress(1f)
     }

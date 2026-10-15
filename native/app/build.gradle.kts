@@ -6,7 +6,9 @@ plugins {
 // The .onnx models, synset.txt and test-bus.jpg live at the repo root (shared
 // with the Termux Python server). They are copied into a generated assets
 // directory at build time so the APK stays self-contained without duplicating
-// ~54 MB of binaries in git.
+// the binaries in git. rf-detr-nano.onnx is Roboflow's RF-DETR Nano, exported
+// with Roboflow's rfdetr code and dynamically quantized (see
+// RFDETR_PROVENANCE.json); it is the default detector.
 // NOTE: no trailing-lambda on from() — Kotlin DSL rejects `from(a, b) { }`
 // ("Passing value as a vararg is only allowed inside a parenthesized
 // argument list"). One Copy task per destination instead.
@@ -15,7 +17,8 @@ val copyModels = tasks.register<Copy>("copyModels") {
         rootProject.file("../yolov8n.onnx"),
         rootProject.file("../yolov8n-seg.onnx"),
         rootProject.file("../yolov8n-pose.onnx"),
-        rootProject.file("../mobilenetv2-12.onnx")
+        rootProject.file("../mobilenetv2-12.onnx"),
+        rootProject.file("../rf-detr-nano.onnx")
     )
     into(layout.buildDirectory.dir("generated/assets/models"))
 }

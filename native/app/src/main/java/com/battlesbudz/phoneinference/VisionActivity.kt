@@ -116,7 +116,11 @@ class VisionActivity : ComponentActivity() {
 
     private fun refreshModelLabel() {
         val name = RoboflowModels.activeModelName(this)
-        val err = CustomDetectorHolder.lastError()
+        val err = when (RoboflowModels.detectionMode(this)) {
+            RoboflowModels.MODE_RFDETR -> RfDetrDetectorHolder.lastError()
+            RoboflowModels.MODE_CUSTOM -> CustomDetectorHolder.lastError()
+            else -> null
+        }
         modelView.text = buildString {
             append("Model: $name")
             if (err != null) append(" (failed to load: $err)")
@@ -302,15 +306,35 @@ class VisionActivity : ComponentActivity() {
         thread {
             try {
                 val eng = EngineHolder.ensure(assets)
-                // Detection slot: the user's Roboflow project model when one is
-                // active, otherwise the stock YOLOv8n. Everything downstream
-                // (UI, caption, /detect) consumes List<Detection> either way.
-                val custom = CustomDetectorHolder.get(this@VisionActivity)
-                val (dets, detMs) = if (custom != null) {
-                    custom.detect(bitmap, 0.25f, 0.45f, 300)
-                } else {
-                    eng.detector.detect(bitmap) // warmup: first run includes kernel init
-                    eng.detector.detect(bitmap, 0.25f, 0.45f, 300)
+                // Detection slot: RF-DETR (bundled, default), the user's
+                // Roboflow project model when custom is active, otherwise
+                // the stock YOLOv8n. A detector that fails to load falls
+                // back to stock. Everything downstream (UI, caption,
+                // /detect) consumes List<Detection> either way.
+                val (dets, detMs) = when (RoboflowModels.detectionMode(this@VisionActivity)) {
+                    RoboflowModels.MODE_CUSTOM -> {
+                        val custom = CustomDetectorHolder.get(this@VisionActivity)
+                        if (custom != null) {
+                            custom.detect(bitmap, 0.25f, 0.45f, 300)
+                        } else {
+                            eng.detector.detect(bitmap) // warmup
+                            eng.detector.detect(bitmap, 0.25f, 0.45f, 300)
+                        }
+                    }
+                    RoboflowModels.MODE_STOCK -> {
+                        eng.detector.detect(bitmap) // warmup: first run includes kernel init
+                        eng.detector.detect(bitmap, 0.25f, 0.45f, 300)
+                    }
+                    else -> { // MODE_RFDETR (default)
+                        val rfdetr = RfDetrDetectorHolder.get(this@VisionActivity)
+                        if (rfdetr != null) {
+                            rfdetr.detect(bitmap) // warmup
+                            rfdetr.detect(bitmap, 0.3f, 300)
+                        } else {
+                            eng.detector.detect(bitmap) // warmup
+                            eng.detector.detect(bitmap, 0.25f, 0.45f, 300)
+                        }
+                    }
                 }
                 val (segs, segMs) = eng.segmenter.segment(bitmap, 0.25f, 0.45f, 300)
                 val (poses, poseMs) = eng.poseDetector.pose(bitmap, 0.25f, 0.45f, 0f, 300)
@@ -370,6 +394,19 @@ class VisionActivity : ComponentActivity() {
                 sb.append("  top=${top5.firstOrNull()?.label} " +
                     "conf=${"%.4f".format(top5.firstOrNull()?.confidence ?: 0f)}, " +
                     "${r1(clsMs)} ms (baseline ~50 ms)\n")
+                // Fifth section: the bundled RF-DETR Nano (Roboflow) detector.
+                sb.append("\n== rfdetr_nano (Roboflow, bundled) ==\n")
+                val rfdetr = RfDetrDetectorHolder.get(this@VisionActivity)
+                if (rfdetr != null) {
+                    rfdetr.detect(bmp) // warmup
+                    val (rDets, rMs) = rfdetr.detect(bmp, 0.3f, 5)
+                    sb.append("  ${rDets.size} predictions, ${r1(rMs)} ms\n")
+                    for (d in rDets.take(3)) {
+                        sb.append("    ${d.label.padEnd(12)} ${"%.3f".format(d.confidence)}\n")
+                    }
+                } else {
+                    sb.append("  failed to load: ${RfDetrDetectorHolder.lastError()}\n")
+                }
             } catch (e: Exception) {
                 sb.append("\nERROR: ${e.message}\n${e.stackTraceToString().take(2000)}")
             }

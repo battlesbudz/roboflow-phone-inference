@@ -10,10 +10,12 @@ Pipeline:
      pretrained checkpoint from HuggingFace, roboflow org) and export
      to ONNX fp32 with Roboflow's own rfdetr export code.
   2. Convert the fp32 ONNX to fp16 with onnxconverter-common's float16
-     converter (weights only; inputs/outputs stay fp32). RF-DETR Nano is ~30.5M
-     params, so fp32 is ~122 MB -- over GitHub's 100 MB file limit.
-     fp16 lands at ~61 MB and is a mechanical precision conversion,
-     not a retrain.
+     converter (weights only; inputs/outputs stay fp32), then insert
+     Cast nodes at the input/output boundaries so ONNX Runtime sees
+     consistent types (the converter alone leaves an fp32-input/fp16-
+     weight mismatch at the first op). RF-DETR Nano is ~30.5M params,
+     so fp32 is ~122 MB -- over GitHub's 100 MB file limit. fp16 lands
+     at ~61 MB and is a mechanical precision conversion, not a retrain.
   3. Verify fp32 vs fp16 on test-bus.jpg with verify_rfdetr.py's decode
      (Roboflow's contract): same top detections, scores within 0.05,
      and report latency for both.
@@ -36,6 +38,67 @@ def sha256_of(path):
         for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def insert_boundary_casts(model_path):
+    """Make an fp16-converted model loadable in ONNX Runtime.
+
+    The fp16 converter leaves graph inputs/outputs fp32
+    (keep_io_types=True) but converts internal weights to fp16, so the
+    first op sees an fp32 input with an fp16 weight and the last ops
+    produce fp16 for fp32-declared outputs -- ORT rejects both as type
+    mismatches. Insert a Cast at each boundary: fp32 graph input ->
+    fp16 for the first op, and fp16 producer -> fp32 for each graph
+    output. The app keeps feeding fp32 and reading fp32, exactly as
+    before; only the interior runs fp16.
+    """
+    import onnx
+    from onnx import TensorProto, helper
+
+    model = onnx.load(str(model_path))
+    graph = model.graph
+
+    for inp in list(graph.input):
+        if inp.type.tensor_type.elem_type != TensorProto.FLOAT:
+            continue
+        cast_out = inp.name + "__fp16"
+        cast = helper.make_node("Cast", [inp.name], [cast_out], to=TensorProto.FLOAT16)
+        # Rewire consumers FIRST: protobuf insert() copies the node, so
+        # an identity check (node is cast) would fail and the Cast would
+        # rewire its own input into a self-loop. Insert after rewiring.
+        for node in graph.node:
+            for i, n in enumerate(node.input):
+                if n == inp.name:
+                    node.input[i] = cast_out
+        graph.node.insert(0, cast)
+
+    for out in list(graph.output):
+        if out.type.tensor_type.elem_type != TensorProto.FLOAT:
+            continue
+        fp16_name = out.name + "__fp16"
+        producer = None
+        for node in graph.node:
+            if out.name in list(node.output):
+                producer = node
+                break
+        if producer is None:
+            continue
+        for i, n in enumerate(producer.output):
+            if n == out.name:
+                producer.output[i] = fp16_name
+        # Internal consumers of the old output name must follow the fp16
+        # tensor, not the new fp32 Cast output.
+        for node in graph.node:
+            if node is producer:
+                continue
+            for i, n in enumerate(node.input):
+                if n == out.name:
+                    node.input[i] = fp16_name
+        cast = helper.make_node("Cast", [fp16_name], [out.name], to=TensorProto.FLOAT)
+        graph.node.append(cast)
+
+    onnx.checker.check_model(model)
+    onnx.save(model, str(model_path))
 
 
 def main():
@@ -72,6 +135,10 @@ def main():
     m = onnx.load(str(fp32_path))
     m16 = float16.convert_float_to_float16(m, keep_io_types=True)
     onnx.save(m16, str(fp16_path))
+    # The converter leaves fp32 graph inputs/outputs but fp16 interior
+    # weights; insert Cast nodes at the boundaries so ORT sees
+    # consistent types (verified on a dummy model locally first).
+    insert_boundary_casts(fp16_path)
     size_mb = fp16_path.stat().st_size / 1e6
     print(f"converted fp16: {fp16_path} ({size_mb:.1f} MB)")
     if size_mb > 95:
@@ -108,7 +175,8 @@ def main():
                   "official COCO checkpoint downloaded by RFDETRNano() from HuggingFace (roboflow org)",
         "rfdetr_version": rfdetr_version,
         "export": "model.export(output_dir) with Roboflow's rfdetr ONNX exporter (opset 17, fp32), "
-                  "then onnxconverter-common float16 converter (weights only, keep_io_types=True)",
+                  "then onnxconverter-common float16 converter (weights only, keep_io_types=True) "
+                  "plus Cast nodes at the input/output boundaries for consistent ORT types",
         "license": "Apache 2.0 (RF-DETR-N is Apache 2.0 per roboflow/rf-detr README benchmarks)",
         "file": "rf-detr-nano.onnx",
         "sha256": sha256_of(str(fp16_path)),

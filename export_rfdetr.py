@@ -38,7 +38,7 @@ Why dynamic quantization, and why not the alternatives:
     model loadable by ONNX Runtime on the phone (same runtime the
     app already ships).
 
-  2026-10-15 phone failure: the first dynamically quantized model
+  2026-10-15 phone failure (re-export trigger commit): the first dynamically quantized model
   FAILED to load on the phone with ORT_NOT_IMPLEMENTED ("Could not
   find an implementation for ConvInteger(10) node ...
   /patch_embeddings/projection/Conv_quant"). The app ships

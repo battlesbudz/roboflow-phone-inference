@@ -47,6 +47,7 @@ class VisionActivity : ComponentActivity() {
     private lateinit var benchmarkOutput: TextView
     private lateinit var benchmarkButton: Button
     private lateinit var serverButton: Button
+    private lateinit var liveButton: Button
     private lateinit var modelButton: Button
     private lateinit var serverInfo: TextView
 
@@ -83,6 +84,9 @@ class VisionActivity : ComponentActivity() {
         sampleButton.setOnClickListener { useSamplePhoto() }
         benchmarkButton.setOnClickListener { toggleBenchmark() }
         serverButton.setOnClickListener { toggleServer() }
+        liveButton.setOnClickListener {
+            startActivity(Intent(this, LiveTrackingActivity::class.java))
+        }
         modelButton.setOnClickListener {
             startActivity(Intent(this, ModelSettingsActivity::class.java))
         }
@@ -190,9 +194,11 @@ class VisionActivity : ComponentActivity() {
         benchmarkButton = Button(this).apply { text = "Benchmark" }
         serverButton = Button(this).apply { text = "Start server" }
         modelButton = Button(this).apply { text = "Model" }
+        liveButton = Button(this).apply { text = "Live tracking" }
         toggleRow.addView(benchmarkButton)
         toggleRow.addView(serverButton)
         toggleRow.addView(modelButton)
+        toggleRow.addView(liveButton)
 
         serverInfo = TextView(this).apply {
             textSize = 12f

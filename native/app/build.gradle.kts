@@ -103,6 +103,13 @@ dependencies {
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
     // Localhost HTTP server for the external-agent API (VisionService).
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+    // Live Tracking mode: CameraX live preview + frame analysis.
+    // The photo/gallery paths still use the system camera app and do not
+    // need these.
+    implementation("androidx.camera:camera-core:1.3.4")
+    implementation("androidx.camera:camera-camera2:1.3.4")
+    implementation("androidx.camera:camera-lifecycle:1.3.4")
+    implementation("androidx.camera:camera-view:1.3.4")
     // FileProvider (camera capture without CAMERA permission) and
     // Activity Result APIs.
     implementation("androidx.core:core:1.13.1")

@@ -1,4 +1,5 @@
-"""One-off export: RF-DETR Nano (Roboflow) -> ONNX INT8 (QDQ), with verification.
+"""One-off export: RF-DETR Nano (Roboflow) -> ONNX, dynamically quantized to int8,
+with verification.
 
 Run in CI via .github/workflows/export-rfdetr.yml (workflow_dispatch).
 It must NOT be run to produce production artifacts from anywhere else:
@@ -8,29 +9,34 @@ export workflow + the provenance JSON it writes.
 Pipeline:
   1. Instantiate Roboflow's RFDETRNano() (downloads the official COCO
      pretrained checkpoint from HuggingFace, roboflow org) and export
-     to ONNX with quantization="int8" using Roboflow's own rfdetr
-     export code. INT8 uses static QDQ (QuantizeLinear /
-     DequantizeLinear): fp32 in/out, int8 interior. The fp32 graph
-     stays on disk as the accuracy baseline.
-  2. Verify fp32 vs INT8 on test-bus.jpg with verify_rfdetr.py's decode
-     (Roboflow's contract): same SET of top-5 labels, scores within
-     0.1. INT8 is a quantised model, so the tolerance is looser than
-     fp16 parity would be -- but a garbage quantisation still fails.
-  3. Write RFDETR_PROVENANCE.json and copy the INT8 ONNX to
+     to ONNX with Roboflow's own rfdetr export code (opset 17, fp32).
+  2. Dynamically quantize with ONNX Runtime's own
+     ``onnxruntime.quantization.quantize_dynamic`` (MatMul / Gemm /
+     Attention weights to int8; Conv layers stay fp32, which is all
+     dynamic quantization supports). ORT produces the quantized graph,
+     so ORT can load it by construction.
+  3. Verify fp32 vs quantized on test-bus.jpg with verify_rfdetr.py's
+     decode (Roboflow's contract): same SET of top-5 labels, scores
+     within 0.1. Quantization is lossy, so the tolerance is looser
+     than exact parity -- but a garbage quantization still fails.
+  4. Write RFDETR_PROVENANCE.json and copy the quantized ONNX to
      rf-detr-nano.onnx at the repo root. The workflow commits both.
 
-Why INT8 and not fp16: the fp16 converter (onnxconverter-common)
-produces a graph ONNX Runtime rejects -- it inserts Cast nodes whose
-output types disagree with the graph's value_info, and neither
-boundary-Cast surgery nor shape-inference refresh fixes it. The
-rfdetr exporter's own INT8 QDQ path is self-consistent by
-construction (the exporter places the quantize ops itself), and at
-~30 MB it is well under GitHub's 100 MB file limit (fp32 is ~122 MB).
-
-Calibration: activation ranges come from variants of the bundled
-test-bus.jpg (crops, flip, brightness, scales). It is one photo, so
-the ranges are approximate -- the fp32-vs-INT8 parity check in step 2
-is the real gate.
+Why dynamic quantization, and why not the alternatives:
+  - rfdetr's ``export()`` has a ``quantization`` parameter, but its
+    docstring says it is TFLite-only and "(ignored when format='onnx')".
+    Passing quantization="int8" for an ONNX export silently produces a
+    plain fp32 file -- there is no INT8 QDQ path in the rfdetr ONNX
+    exporter (verified against rfdetr 1.9.1 source, detr.py).
+  - The fp16 converter (onnxconverter-common) produces a graph ONNX
+    Runtime rejects -- it inserts Cast nodes whose output types
+    disagree with the graph's value_info, and neither boundary-Cast
+    surgery nor shape-inference refresh fixes it.
+  - The fp32 export is ~115 MB, over GitHub's 100 MB per-file push
+    limit, so it cannot be committed to the repo. Dynamic
+    quantization brings it well under the limit while keeping the
+    model loadable by ONNX Runtime on the phone (same runtime the
+    app already ships).
 """
 
 import hashlib
@@ -48,34 +54,6 @@ def sha256_of(path):
     return h.hexdigest()
 
 
-def make_calibration_images(source_path, out_dir):
-    """Variants of one photo for INT8 activation-range calibration."""
-    from PIL import Image, ImageEnhance
-
-    out_dir.mkdir(exist_ok=True)
-    img = Image.open(source_path).convert("RGB")
-    w, h = img.size
-    variants = {"orig": img}
-    variants["flip"] = img.transpose(Image.FLIP_LEFT_RIGHT)
-    variants["bright_low"] = ImageEnhance.Brightness(img).enhance(0.7)
-    variants["bright_high"] = ImageEnhance.Brightness(img).enhance(1.3)
-    # Quadrant + center crops, resized back to full size.
-    boxes = {
-        "crop_tl": (0, 0, w // 2, h // 2),
-        "crop_tr": (w // 2, 0, w, h // 2),
-        "crop_bl": (0, h // 2, w // 2, h),
-        "crop_br": (w // 2, h // 2, w, h),
-        "crop_center": (w // 4, h // 4, 3 * w // 4, 3 * h // 4),
-    }
-    for name, box in boxes.items():
-        variants[name] = img.crop(box).resize((w, h), Image.BILINEAR)
-    variants["small"] = img.resize((w // 2, h // 2), Image.BILINEAR).resize((w, h), Image.BILINEAR)
-    variants["gray"] = img.convert("L").convert("RGB")
-    for name, v in variants.items():
-        v.save(out_dir / f"{name}.jpg", "JPEG", quality=90)
-    return sorted(out_dir.glob("*.jpg"))
-
-
 def main():
     import verify_rfdetr
 
@@ -83,7 +61,7 @@ def main():
     export_dir = root / "rfdetr_export"
     export_dir.mkdir(exist_ok=True)
 
-    # 1. Export fp32 + INT8 with Roboflow's own code.
+    # 1. Export fp32 with Roboflow's own code.
     import importlib.metadata
 
     try:
@@ -91,79 +69,73 @@ def main():
     except Exception:
         rfdetr_version = "unknown"
     print(f"rfdetr version: {rfdetr_version}")
-    calib_files = make_calibration_images(root / "test-bus.jpg", root / "calib")
-    print(f"calibration images: {len(calib_files)}")
 
     from rfdetr import RFDETRNano
 
     model = RFDETRNano()
-    model.export(
-        str(export_dir),
-        format="onnx",
-        quantization="int8",
-        calibration_data=str(root / "calib"),
-    )
+    model.export(str(export_dir), format="onnx")
     onnx_files = sorted(export_dir.glob("*.onnx"))
     print(f"exported files: {[(p.name, round(p.stat().st_size / 1e6, 1)) for p in onnx_files]}")
-    if len(onnx_files) < 2:
-        print(f"FAIL: expected fp32 + int8 ONNX files, got {[p.name for p in onnx_files]}")
+    if len(onnx_files) != 1:
+        print(f"FAIL: expected exactly 1 fp32 ONNX file, got {[p.name for p in onnx_files]}")
         sys.exit(1)
-    int8_candidates = [p for p in onnx_files if "int8" in p.name.lower()]
-    if int8_candidates:
-        int8_path = int8_candidates[0]
-    else:
-        # Fall back to the smaller file (INT8 is ~1/4 the size of fp32).
-        int8_path = min(onnx_files, key=lambda p: p.stat().st_size)
-    fp32_candidates = [p for p in onnx_files if p != int8_path]
-    fp32_path = fp32_candidates[0]
+    fp32_path = onnx_files[0]
     print(f"fp32: {fp32_path.name} ({fp32_path.stat().st_size / 1e6:.1f} MB)")
-    print(f"int8: {int8_path.name} ({int8_path.stat().st_size / 1e6:.1f} MB)")
 
+    # 2. Dynamic-quantize with ONNX Runtime's own tool.
+    import onnxruntime as ort
+    from onnxruntime.quantization import quantize_dynamic
+
+    print(f"onnxruntime version: {ort.__version__}")
     out_path = root / "rf-detr-nano.onnx"
-    out_path.write_bytes(int8_path.read_bytes())
+    quantize_dynamic(str(fp32_path), str(out_path))
     size_mb = out_path.stat().st_size / 1e6
+    print(f"quantized: {out_path.name} ({size_mb:.1f} MB)")
     if size_mb > 95:
-        print(f"FAIL: int8 model {size_mb:.1f} MB is too close to GitHub's 100 MB file limit")
+        print(f"FAIL: quantized model {size_mb:.1f} MB is too close to GitHub's 100 MB file limit")
         sys.exit(1)
 
-    # 2. Verify fp32 vs INT8 on the bundled test image.
+    # 3. Verify fp32 vs quantized on the bundled test image.
     image = root / "test-bus.jpg"
     fp32_res = verify_rfdetr.run_model(str(fp32_path), str(image), threshold=0.3)
-    int8_res = verify_rfdetr.run_model(str(out_path), str(image), threshold=0.3)
+    quant_res = verify_rfdetr.run_model(str(out_path), str(image), threshold=0.3)
     fp32_labels = [d["label"] for d in fp32_res["detections"]]
-    int8_labels = [d["label"] for d in int8_res["detections"]]
+    quant_labels = [d["label"] for d in quant_res["detections"]]
     print(f"fp32 detections ({len(fp32_labels)}): {fp32_labels[:10]}")
-    print(f"int8 detections ({len(int8_labels)}): {int8_labels[:10]}")
+    print(f"quant detections ({len(quant_labels)}): {quant_labels[:10]}")
     print(f"fp32 latency_ms mean: {fp32_res['latency_ms']['mean']}")
-    print(f"int8 latency_ms mean: {int8_res['latency_ms']['mean']}")
-    if "bus" not in fp32_labels or "bus" not in int8_labels:
-        print("FAIL: 'bus' not detected by fp32 and/or int8 on test-bus.jpg")
+    print(f"quant latency_ms mean: {quant_res['latency_ms']['mean']}")
+    if "bus" not in fp32_labels or "bus" not in quant_labels:
+        print("FAIL: 'bus' not detected by fp32 and/or quantized on test-bus.jpg")
         sys.exit(1)
-    # INT8 parity: same SET of top-5 labels, scores within 0.1.
+    # Parity: same SET of top-5 labels, scores within 0.1.
     # (Order may shuffle when two detections score close together.)
     fp32_top = {d["label"]: d["confidence"] for d in fp32_res["detections"][:5]}
-    int8_top = {d["label"]: d["confidence"] for d in int8_res["detections"][:5]}
-    if set(fp32_top) != set(int8_top):
-        print(f"FAIL: fp32/int8 top-5 label sets differ: {sorted(fp32_top)} vs {sorted(int8_top)}")
+    quant_top = {d["label"]: d["confidence"] for d in quant_res["detections"][:5]}
+    if set(fp32_top) != set(quant_top):
+        print(f"FAIL: fp32/quant top-5 label sets differ: {sorted(fp32_top)} vs {sorted(quant_top)}")
         sys.exit(1)
     for label in fp32_top:
-        if abs(fp32_top[label] - int8_top[label]) > 0.1:
-            print(f"FAIL: fp32/int8 score drift on '{label}': "
-                  f"{fp32_top[label]} vs {int8_top[label]}")
+        if abs(fp32_top[label] - quant_top[label]) > 0.1:
+            print(f"FAIL: fp32/quant score drift on '{label}': "
+                  f"{fp32_top[label]} vs {quant_top[label]}")
             sys.exit(1)
-    print("fp32/int8 parity OK")
+    print("fp32/quant parity OK")
 
-    # 3. Provenance.
-    import onnxruntime as ort
-
+    # 4. Provenance.
     sess = ort.InferenceSession(str(out_path), providers=["CPUExecutionProvider"])
     provenance = {
         "model": "RF-DETR Nano (RFDETRNano), COCO pretrained",
         "source": "Roboflow rfdetr package (github.com/roboflow/rf-detr), "
                   "official COCO checkpoint downloaded by RFDETRNano() from HuggingFace (roboflow org)",
         "rfdetr_version": rfdetr_version,
-        "export": "model.export(format='onnx', quantization='int8', calibration_data=<test-bus.jpg variants>) "
-                  "with Roboflow's rfdetr ONNX exporter (opset 17). Static QDQ: fp32 in/out, int8 interior.",
+        "export": "model.export(format='onnx') with Roboflow's rfdetr ONNX exporter (opset 17, fp32), "
+                  "then onnxruntime.quantization.quantize_dynamic (MatMul/Gemm/Attention weights "
+                  "to int8; Conv layers stay fp32). rfdetr's export() quantization parameter is "
+                  "TFLite-only and ignored for ONNX; the fp32 export (~115 MB) exceeds GitHub's "
+                  "100 MB file limit, so dynamic quantization is what makes the file committable.",
+        "quantization": "dynamic int8 (onnxruntime.quantization.quantize_dynamic, "
+                        f"onnxruntime {ort.__version__}); weights int8, activations fp32",
         "license": "Apache 2.0 (RF-DETR-N is Apache 2.0 per roboflow/rf-detr README benchmarks)",
         "file": "rf-detr-nano.onnx",
         "sha256": sha256_of(str(out_path)),
@@ -177,13 +149,12 @@ def main():
                         "decode keeps every slot, unmapped slots never emit",
         "decode": "per-class sigmoid, top-Q pairs, score > 0.3, no NMS; "
                   "preprocess: direct resize, /255, ImageNet mean/std, NCHW",
-        "calibration": f"{len(calib_files)} variants of test-bus.jpg (crops, flip, brightness, scales, gray)",
         "verification": {
             "image": "test-bus.jpg",
             "fp32": {"detections": fp32_labels[:10],
                      "latency_ms_mean": fp32_res["latency_ms"]["mean"]},
-            "int8": {"detections": int8_labels[:10],
-                     "latency_ms_mean": int8_res["latency_ms"]["mean"]},
+            "quantized": {"detections": quant_labels[:10],
+                          "latency_ms_mean": quant_res["latency_ms"]["mean"]},
             "parity": "same top-5 label set, scores within 0.1",
         },
         "exported_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

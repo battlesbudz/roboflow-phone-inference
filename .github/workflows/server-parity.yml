@@ -1,0 +1,49 @@
+name: server-parity
+
+# Verifies the phone inference server on every push to main:
+# the /infer/* endpoints (object detection, instance segmentation,
+# keypoint detection, classification) plus /health and /detect,
+# exercised against the real ONNX models checked into the repo.
+#
+# test_rf_compat.py is intentionally NOT run here: it validates shapes
+# against the real Roboflow inference 1.7.3 classes, which need the
+# 7 GB inference package. test_smoke.py covers the same endpoints
+# without that dependency and is what CI runs.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server.py"
+      - "test_smoke.py"
+      - "test_rf_compat.py"
+      - "requirements.txt"
+      - ".github/workflows/server-parity.yml"
+      - "*.onnx"
+      - "synset.txt"
+      - "test-bus.jpg"
+  pull_request:
+    branches: [main]
+    paths:
+      - "server.py"
+      - "test_smoke.py"
+      - "test_rf_compat.py"
+      - "requirements.txt"
+      - ".github/workflows/server-parity.yml"
+      - "*.onnx"
+      - "synset.txt"
+      - "test-bus.jpg"
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Smoke test all endpoints (real models)
+        run: python test_smoke.py

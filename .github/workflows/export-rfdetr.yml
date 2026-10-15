@@ -14,6 +14,12 @@ name: export-rfdetr
 
 on:
   workflow_dispatch:
+  # Push trigger exists because the API token cannot dispatch workflows
+  # (Actions: write not granted). Pushing this file runs the export once.
+  # Remove the push trigger after the one-off export lands.
+  push:
+    branches: [feature/native-onnx-app]
+    paths: [.github/workflows/export-rfdetr.yml]
 
 permissions:
   contents: write

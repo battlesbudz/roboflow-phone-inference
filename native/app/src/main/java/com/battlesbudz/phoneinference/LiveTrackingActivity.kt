@@ -69,7 +69,7 @@ class LiveTrackingActivity : ComponentActivity() {
     private lateinit var topBar: TextView
     private lateinit var statusView: TextView
     private lateinit var previewView: PreviewView
-    private lateinit var overlay: TrackingOverlay
+    private lateinit var trackingOverlay: TrackingOverlay
     private lateinit var toggleButton: Button
 
     private val tracker = LiveTracker()
@@ -193,7 +193,7 @@ class LiveTrackingActivity : ComponentActivity() {
             )
             val fpsSnap = fps
             runOnUiThread {
-                overlay.setState(result.tracks, bitmap.width, bitmap.height)
+                trackingOverlay.setState(result.tracks, bitmap.width, bitmap.height)
                 topBar.text =
                     "FPS %.1f · Now %d · IN %d · OUT %d · In zone %d".format(
                         fpsSnap,
@@ -283,7 +283,7 @@ class LiveTrackingActivity : ComponentActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT,
             )
         }
-        overlay = TrackingOverlay(this).apply {
+        trackingOverlay = TrackingOverlay(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -294,7 +294,7 @@ class LiveTrackingActivity : ComponentActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
             )
             addView(previewView)
-            addView(overlay)
+            addView(trackingOverlay)
         }
         toggleButton = Button(this).apply { text = "Stop" }
         val buttonRow = LinearLayout(this).apply {

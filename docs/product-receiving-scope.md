@@ -14,7 +14,7 @@ and in cannabis that is a compliance problem, not just a bookkeeping one.
 
 ## Receiving workflow as it exists today (NY dispensary)
 
-Verified from NY OCM / BioTrack guidance (see Sources):
+Verified from NY OCM / Metrc guidance (see Sources):
 
 1. Shipment arrives with an invoice and a shipping manifest. The manifest is
    transmitted to OCM and the recipient before transport. It lists product
@@ -34,8 +34,9 @@ Verified from NY OCM / BioTrack guidance (see Sources):
 
 NY-specific rules that shape this feature:
 
-- NY uses BioTrack as the state seed-to-sale system (not Metrc). Retail
-  dispensary integration deadline was October 1, 2025.
+- NY uses Metrc as the state seed-to-sale system. Metrc acquired
+  BioTrack, so older BioTrack references in the industry now point at
+  Metrc. Retail dispensary integration deadline was October 1, 2025.
 - Tracking must be real-time and electronic. Paper records or spreadsheets
   are not compliant. Entering inventory movement after the fact is not
   compliant.
@@ -57,7 +58,7 @@ Vision cannot / will not do:
 
 - Accept or reject a shipment on its own. A human confirms every
   accept/reject decision.
-- Write to BioTrack or any seed-to-sale system. In v1 the human enters the
+- Write to Metrc or any seed-to-sale system. In v1 the human enters the
   decision in their own system. Any future direct integration would need
   authorized integrator status — an open question, not a v1 feature.
 - Judge product quality, potency, or lab results. It reads what the label
@@ -103,7 +104,7 @@ same camera pipeline, not a new app.
    there?
 2. Manifest format: photo of the paper manifest, CSV export from their
    system, or manual entry?
-3. BioTrack: do we ever aim for authorized integrator status, or stay
+3. Metrc: do we ever aim for authorized integrator status, or stay
    human-in-the-loop permanently?
 4. Does receiving happen at a table (phone on a stand) or handheld?
 5. What barcode types are on NY cannabis packaging (1D, QR, DataMatrix)?
@@ -112,7 +113,7 @@ same camera pipeline, not a new app.
 
 ## Verified vs assumed
 
-Verified from public sources: NY uses BioTrack; manifest contents and
+Verified from public sources: NY uses Metrc; manifest contents and
 pre-transport transmission; accept / fully reject / partially reject flow;
 real-time electronic tracking requirement; Invoice -> Manifest -> Transfer.
 
@@ -124,9 +125,9 @@ presented as facts above.
 
 ## Sources
 
-- NY OCM seed-to-sale bulletins: cannabis.ny.gov (STS bulletins, BioTrack
+- NY OCM seed-to-sale bulletins: cannabis.ny.gov (STS bulletins, Metrc
   integration timeline and requirements)
-- NY OCM BioTrack inventory tracking FAQ: cannabis.ny.gov/inventory-tracking-FAQ
+- NY OCM Metrc inventory tracking FAQ: cannabis.ny.gov/inventory-tracking-FAQ
 - NY cannabis guidance breakdown (manifest requirements): Cannabis Law Report
 - General receiving / quarantine SOP patterns: pharmacy and warehouse
   receiving checklists (used as analogy only — not cannabis-specific)

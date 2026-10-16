@@ -187,6 +187,23 @@ class VisionActivity : ComponentActivity() {
             addView(answerView)
         }
 
+        // Live Tracking gets its own full-width row: as a 4th button in the
+        // toggle row it was pushed off the right edge of the screen on phones
+        // (plain LinearLayout, no horizontal scroll), so users never saw it.
+        val liveRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dp(8), 0, dp(4))
+        }
+        liveButton = Button(this).apply {
+            text = "Live tracking"
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        liveRow.addView(liveButton)
+
         val toggleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -194,11 +211,9 @@ class VisionActivity : ComponentActivity() {
         benchmarkButton = Button(this).apply { text = "Benchmark" }
         serverButton = Button(this).apply { text = "Start server" }
         modelButton = Button(this).apply { text = "Model" }
-        liveButton = Button(this).apply { text = "Live tracking" }
         toggleRow.addView(benchmarkButton)
         toggleRow.addView(serverButton)
         toggleRow.addView(modelButton)
-        toggleRow.addView(liveButton)
 
         serverInfo = TextView(this).apply {
             textSize = 12f
@@ -213,6 +228,7 @@ class VisionActivity : ComponentActivity() {
         root.addView(statusView)
         root.addView(preview)
         root.addView(buttonRow)
+        root.addView(liveRow)
         root.addView(answerLabel)
         root.addView(answerScroll)
         root.addView(toggleRow)
@@ -243,13 +259,33 @@ class VisionActivity : ComponentActivity() {
     // ---------------------------------------------------------- image sources
 
     private fun takePhoto() {
+        // Both throw points below used to be unguarded, so either one
+        // crashed the whole app: FileProvider.getUriForFile throws
+        // IllegalArgumentException when the provider/authority cannot be
+        // resolved, and launching the intent throws
+        // ActivityNotFoundException when no camera app can handle it.
+        // Surface the exact error in the status line instead of crashing,
+        // so a failure is visible and diagnosable on-device.
         val photoFile = File(cacheDir, "capture_${System.currentTimeMillis()}.jpg")
-        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", photoFile)
+        val uri = try {
+            FileProvider.getUriForFile(this, "$packageName.fileprovider", photoFile)
+        } catch (e: Exception) {
+            setStatus("Could not open camera (file provider): ${e.javaClass.simpleName}: ${e.message}")
+            return
+        }
         pendingCaptureUri = uri
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
             .putExtra(MediaStore.EXTRA_OUTPUT, uri)
             .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-        captureLauncher.launch(intent)
+        if (packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY).isEmpty()) {
+            setStatus("Could not open camera: no camera app found on this device.")
+            return
+        }
+        try {
+            captureLauncher.launch(intent)
+        } catch (e: Exception) {
+            setStatus("Could not open camera: ${e.javaClass.simpleName}: ${e.message}")
+        }
     }
 
     private fun pickFromGallery() {

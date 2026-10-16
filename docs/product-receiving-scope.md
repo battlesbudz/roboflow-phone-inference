@@ -71,8 +71,9 @@ Vision cannot / will not do:
 A new mode in the existing phone app, alongside Live Tracking. Same app,
 same camera pipeline, not a new app.
 
-- Point the phone camera (or watch the store RTSP camera) at the incoming
-  shipment.
+- The phone is MOUNTED on a stand at the receiving table (decided by
+  Battles 2026-10-16: mounted phone, not handheld). The mounted phone's
+  own camera watches the incoming shipment.
 - Scan each package: read the label + package UID, count units.
 - Compare against the manifest (staff-provided — format is an open question).
 - Show per item: match / mismatch / damaged (staff taps damaged + photo).
@@ -83,9 +84,13 @@ same camera pipeline, not a new app.
 
 ## Data sources
 
-- Phone camera: build, test, and demo.
-- RTSP store cameras: production, same architecture as the visitor-counting
-  mode (phone watches the store's existing camera streams over WiFi).
+- Mounted phone's own camera: build, test, demo, AND production for the
+  receiving feature. The phone sits on a stand at the receiving table and
+  its camera watches the incoming shipment.
+- RTSP store cameras: NOT used for receiving. The RTSP phone-watches-streams
+  architecture applies to the visitor-counting mode only, not to receiving.
+  Decided by Battles 2026-10-16: there is no store camera with a usable
+  view of the intake table.
 - Manifest: staff-provided. Photo of paper manifest, CSV export, or manual
   entry — open question.
 
@@ -106,10 +111,14 @@ same camera pipeline, not a new app.
    system, or manual entry?
 3. Metrc: do we ever aim for authorized integrator status, or stay
    human-in-the-loop permanently?
-4. Does receiving happen at a table (phone on a stand) or handheld?
+4. ~~Does receiving happen at a table (phone on a stand) or handheld?~~
+   ANSWERED 2026-10-16: mounted phone on a stand at the receiving table,
+   not handheld.
 5. What barcode types are on NY cannabis packaging (1D, QR, DataMatrix)?
-6. Does the store's receiving area have a camera with a usable view of the
-   intake table, or is the phone camera the only view?
+6. ~~Does the store's receiving area have a camera with a usable view of the
+   intake table, or is the phone camera the only view?~~
+   ANSWERED 2026-10-16: NO — there is no store camera with a usable view
+   of the intake table. The mounted phone's own camera is the input.
 
 ## Verified vs assumed
 
@@ -119,9 +128,14 @@ real-time electronic tracking requirement; Invoice -> Manifest -> Transfer.
 
 Assumed, to confirm with a real operator: exact per-store SOP details
 (barcode scan per unit vs count cases), barcode types on NY packaging,
-whether a phone at the receiving table is acceptable workflow, and whether
-OCR is reliable on real cannabis package labels. None of these are
-presented as facts above.
+and whether OCR is reliable on real cannabis package labels. None of these
+are presented as facts above.
+
+Decided by Battles 2026-10-16 (no longer assumed): the receiving feature
+runs on a MOUNTED phone at the receiving table, not handheld, and the
+store's receiving area has NO camera with a usable view of the intake
+table — so the mounted phone's own camera is the production input, not
+RTSP store cameras.
 
 ## Sources
 

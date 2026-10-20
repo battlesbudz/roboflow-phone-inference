@@ -196,7 +196,15 @@ class VisionService : Service() {
             }
             return JSONObject()
                 .put("status", "ok")
-                .put("model", "yolov8n")
+                .put(
+                    "model",
+                    when (RoboflowModels.detectionMode(this@VisionService)) {
+                        RoboflowModels.MODE_RFDETR -> "rf-detr"
+                        RoboflowModels.MODE_CUSTOM ->
+                            RoboflowModels.activeModelName(this@VisionService)
+                        else -> "yolov8n"
+                    },
+                )
                 .put("active_detector", RoboflowModels.activeModelName(this@VisionService))
                 .put("version", BuildConfig.VERSION_NAME)
                 .put("model_load_ms", loadMs["detection"] ?: -1.0)

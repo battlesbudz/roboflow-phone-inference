@@ -153,6 +153,7 @@ def _map_to_original(
 
 class Detector:
     def __init__(self, model_path: str = MODEL_PATH):
+        self.model_path = model_path
         t0 = time.time()
         self.session = ort.InferenceSession(
             model_path, providers=["CPUExecutionProvider"]
@@ -212,16 +213,16 @@ app = FastAPI(title="Jarvis Lean Inference Server", version=VERSION)
 @app.get("/health")
 def health():
     models = {}
-    for name, obj, fname in (
-        ("object_detection", detector, "yolov8n.onnx"),
-        ("instance_segmentation", segmenter, "yolov8n-seg.onnx"),
-        ("keypoint_detection", pose_detector, "yolov8n-pose.onnx"),
-        ("classification", classifier, "mobilenetv2-12.onnx"),
+    for name, obj in (
+        ("object_detection", detector),
+        ("instance_segmentation", segmenter),
+        ("keypoint_detection", pose_detector),
+        ("classification", classifier),
     ):
-        models[name] = {"file": fname, "load_ms": round(obj.load_ms, 1)}
+        models[name] = {"file": Path(obj.model_path).name, "load_ms": round(obj.load_ms, 1)}
     return {
         "status": "ok",
-        "model": "yolov8n",
+        "model": Path(detector.model_path).stem,
         "version": VERSION,
         "model_load_ms": round(detector.load_ms, 1),
         "models": models,
@@ -470,6 +471,7 @@ def _scanline_polygon(binm: np.ndarray, max_points: int = 200) -> list[tuple[flo
 
 class Segmenter:
     def __init__(self, model_path: str = SEG_MODEL_PATH):
+        self.model_path = model_path
         t0 = time.time()
         self.session = ort.InferenceSession(
             model_path, providers=["CPUExecutionProvider"]
@@ -553,6 +555,7 @@ class Segmenter:
 
 class PoseDetector:
     def __init__(self, model_path: str = POSE_MODEL_PATH):
+        self.model_path = model_path
         t0 = time.time()
         self.session = ort.InferenceSession(
             model_path, providers=["CPUExecutionProvider"]
@@ -622,6 +625,7 @@ class PoseDetector:
 
 class Classifier:
     def __init__(self, model_path: str = CLS_MODEL_PATH):
+        self.model_path = model_path
         t0 = time.time()
         self.session = ort.InferenceSession(
             model_path, providers=["CPUExecutionProvider"]

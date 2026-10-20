@@ -1,0 +1,36 @@
+name: verify-rfdetr-model
+
+# Every push touching the bundled RF-DETR model or its decoders re-runs
+# the model through Roboflow's decode contract on test-bus.jpg (bus must
+# be detected). This is the standing guard that the committed model file
+# and the Kotlin decoder stay in agreement -- the export workflow only
+# runs once, but this runs on every change.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/native-onnx-app]
+    paths:
+      - rf-detr-nano.onnx
+      - verify_rfdetr.py
+      - native/app/src/main/java/com/battlesbudz/phoneinference/RfDetr*.kt
+      - .github/workflows/verify-rfdetr-model.yml
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/native-onnx-app
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install onnxruntime
+        run: pip install onnxruntime onnx Pillow numpy
+
+      - name: Verify RF-DETR model (Roboflow decode contract)
+        run: python verify_rfdetr.py --model rf-detr-nano.onnx --image test-bus.jpg --require-label bus

@@ -1,0 +1,101 @@
+name: native-android
+
+# NOTE: gradlew loses its executable bit when pushed via the GitHub Contents
+# API, hence the explicit chmod below. If gradlew is committed with mode
+# 100755 (e.g. via a normal git push), the chmod is harmless.
+
+on:
+  push:
+    branches: [feature/native-onnx-app]
+    paths:
+      - "native/**"
+      - ".github/workflows/native-android.yml"
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# Cancel stale runs: a new push supersedes older in-flight builds on this branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: phone-inference-native-debug
+          path: native/app/build/outputs/apk/debug/app-debug.apk
+
+  release:
+    # Signed release + GitHub Release. Runs ONLY on v* tags; never on
+    # ordinary branch pushes. No tag is created by CI — cut one manually
+    # when a public release is approved.
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore release keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > /tmp/release-keystore.p12
+          test -s /tmp/release-keystore.p12
+
+      - name: Build signed release APK
+        env:
+          KEYSTORE_PATH: /tmp/release-keystore.p12
+        run: |
+          chmod +x gradlew
+          # Secrets pasted via the GitHub web UI can carry stray whitespace;
+          # strip it so signing uses the exact keystore credentials.
+          export KEYSTORE_PASSWORD="$(printf '%s' '${{ secrets.KEYSTORE_PASSWORD }}' | tr -d '[:space:]')"
+          export KEY_ALIAS="$(printf '%s' '${{ secrets.KEY_ALIAS }}' | tr -d '[:space:]')"
+          export KEY_PASSWORD="$(printf '%s' '${{ secrets.KEY_PASSWORD }}' | tr -d '[:space:]')"
+          ./gradlew assembleRelease --stacktrace
+
+      - name: SHA-256 checksum
+        run: |
+          cd app/build/outputs/apk/release
+          sha256sum app-release.apk | tee app-release.apk.sha256
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            native/app/build/outputs/apk/release/app-release.apk
+            native/app/build/outputs/apk/release/app-release.apk.sha256

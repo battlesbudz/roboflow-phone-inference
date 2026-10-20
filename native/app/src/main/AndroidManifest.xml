@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Required even for loopback sockets; normal permission, no user prompt. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Live Tracking mode uses the live camera preview (CameraX). The
+         photo/gallery/server paths do not need this. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <application
+        android:label="Phone Inference"
+        android:theme="@android:style/Theme.Material.Light">
+        <activity
+            android:name=".VisionActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Camera captures are written here and handed to the system camera
+             app via FileProvider, so the app needs no CAMERA permission. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <service
+            android:name=".VisionService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-device vision inference server for external agents" />
+        </service>
+        <activity
+            android:name=".ModelSettingsActivity"
+            android:exported="false"
+            android:label="Roboflow model" />
+        <activity
+            android:name=".LiveTrackingActivity"
+            android:exported="false"
+            android:label="Live tracking" />
+    </application>
+
+</manifest>

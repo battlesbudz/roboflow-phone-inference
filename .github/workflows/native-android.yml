@@ -6,7 +6,7 @@ name: native-android
 
 on:
   push:
-    branches: [feature/native-onnx-app]
+    branches: [main, feature/native-onnx-app]
     paths:
       - "native/**"
       - ".github/workflows/native-android.yml"
